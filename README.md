@@ -56,15 +56,7 @@ DATA_FETCH_INTERVAL=300000 # Data aggregation interval in milliseconds (default:
 API_KEY=your-secure-api-key # Optional for authentication middleware
 ```
 
-### 4. Run PostgreSQL with Docker (Optional)
-
-If you don’t have PostgreSQL installed, you can use Docker:
-
-```sh
-docker-compose up -d
-```
-
-Alternatively, manually set up PostgreSQL and update DATABASE_URL in `.env`.
+### 4. Run PostgreSQL manually set up PostgreSQL and update DATABASE_URL in `.env`.
 
 ### 5. Generate Prisma Client & Migrate Database
 
