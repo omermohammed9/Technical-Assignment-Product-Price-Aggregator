@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📊 Live Product Changes</title>
+  <style>
+      body {
+          font-family: Arial, sans-serif;
+          margin: 20px;
+          padding: 20px;
+          background-color: #f4f4f4;
+      }
+
+      h1 {
+          color: #333;
+          text-align: center;
+      }
+
+      #status {
+          text-align: center;
+          font-size: 14px;
+          color: gray;
+          margin-bottom: 10px;
+      }
+
+      ul {
+          list-style: none;
+          padding: 0;
+          max-width: 600px;
+          margin: 0 auto;
+      }
+
+      li {
+          background: white;
+          margin: 8px 0;
+          padding: 12px;
+          border-radius: 5px;
+          box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
+
+      .price-up {
+          color: green;
+          font-weight: bold;
+      }
+
+      .price-down {
+          color: red;
+          font-weight: bold;
+      }
+
+      .timestamp {
+          font-size: 12px;
+          color: gray;
+      }
+  </style>
+</head>
+<body>
+
+<h1>📊 Live Product Changes</h1>
+<p id="status">🔄 Connecting to live updates...</p>
+<ul id="product-changes">
+  <li>No updates yet...</li>
+</ul>
+
+<script>
+  const eventSource = new EventSource("http://localhost:3000/products/live-changes");
+  const list = document.getElementById("product-changes");
+  const statusIndicator = document.getElementById("status");
+
+  eventSource.onopen = () => {
+    statusIndicator.textContent = "✅ Connected to live updates!";
+    statusIndicator.style.color = "green";
+  };
+
+  eventSource.onmessage = (event) => {
+    console.log("🔄 SSE Event Received:", event.data);
+
+    try {
+      const updates = JSON.parse(event.data);
+      list.innerHTML = ""; // Clear previous updates
+
+      if (updates.length === 0) {
+        list.innerHTML = "<li>No recent changes.</li>";
+        return;
+      }
+
+      updates.forEach(update => {
+        const listItem = document.createElement("li");
+
+        const productName = update.name || "Unknown Product";
+        const oldPrice = update.oldPrice !== undefined ? `$${update.oldPrice.toFixed(2)}` : "N/A";
+        const newPrice = update.newPrice !== undefined ? `$${update.newPrice.toFixed(2)}` : "N/A";
+        const updatedTime = new Date(update.timestamp).toLocaleString();
+
+        // Determine price increase or decrease
+        const priceClass = update.newPrice > update.oldPrice ? "price-up" : "price-down";
+
+        listItem.innerHTML = `
+          <span><strong>${productName}</strong>: Old Price <span>${oldPrice}</span> → <span class="${priceClass}">${newPrice}</span></span>
+          <span class="timestamp">📅 Updated at: ${updatedTime}</span>
+        `;
+
+        list.appendChild(listItem);
+      });
+
+    } catch (error) {
+      console.error("❌ Error Parsing SSE Data:", error);
+    }
+  };
+
+  eventSource.onerror = () => {
+    statusIndicator.textContent = "❌ Connection lost. Trying to reconnect...";
+    statusIndicator.style.color = "red";
+  };
+</script>
+
+</body>
+</html>
