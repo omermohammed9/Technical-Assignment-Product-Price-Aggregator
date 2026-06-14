@@ -261,15 +261,30 @@ To use it:
 
 ---
 
-## SSE Live Dashboard
+## Premium React + Vite Pricing Dashboard
 
-A zero-dependency HTML page is served at:
+A beautiful, interactive React + Vite + Chart.js single-page portfolio dashboard is served at:
 
 ```
 http://localhost:3000/public/index.html
 ```
 
-It connects to the SSE endpoint and renders price changes in real time. Trigger changes via the simulate endpoint to see updates appear instantly.
+Key features:
+- **Metrics Overview**: Summary statistics (total items, average price, stale flags, active provider count).
+- **Product Catalog**: Live search, provider dropdown, min/max price sliders, pagination, and details inspector.
+- **Price History Charts**: Beautiful curved line charts visualizing price aggregation histories using Chart.js.
+- **Live Price Stream**: Persistent SSE stream connection with real-time animated notifications and popup alert toasts.
+- **Price Change Simulator**: Form to immediately trigger mock price changes on any product.
+- **Settings Panel**: Configure and store the backend URL and `x-api-key` credentials in `localStorage`.
+
+### Local Frontend Development
+To run or build the frontend independently:
+```bash
+cd frontend
+npm install
+npm run dev      # Starts Vite dev server on http://localhost:5173 (proxied to backend 3000)
+npm run build    # Compiles and outputs production bundle directly to NestJS static public/ folder
+```
 
 ---
 

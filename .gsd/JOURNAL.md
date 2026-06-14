@@ -85,3 +85,55 @@
     - Created a complete Postman collection `product-price-aggregator.postman_collection.json` in the root folder with all route contracts, parameters, variables (`{{base_url}}`, `{{api_key}}`), and headers.
     - Updated `README.md` to document the Postman collection variables and import details.
     - Verified all changes against standard quality gates (`npm run lint` and `npm run test:e2e`).
+
+---
+
+## 2026-06-14 — Phase 2 Frontend Dashboard Implemented
+
+  Task: P2-01 — React + Vite Frontend Dashboard
+  Status: COMPLETED
+
+  Changes Made:
+    - Enabled CORS globally in NestJS backend [src/main.ts](file:///c:/Users/omarz/Desktop/product-price-aggregator/src/main.ts) (`app.enableCors()`) to support local development on port 5173.
+    - Created React + Vite + TypeScript application inside the `frontend/` folder.
+    - Set up Vite config (`vite.config.ts`) to build static assets directly into the backend's `/public` folder (`build.outDir: '../public'`) and proxy API routes.
+    - Built a custom stylesheet (`frontend/src/index.css`) with curated dark/light CSS variables, glassmorphism card stylings, and responsive layout classes.
+    - Created `ConfigPanel` component to allow real-time setup and localstorage persistence of backend URL and `x-api-key`.
+    - Created `MetricsOverview` component offering four cards visualizing catalog metrics (total products, average price, number of stale products, number of providers).
+    - Created `ProductList` component implementing text search, provider/availability dropdowns, min/max price sliders, and pagination controls.
+    - Created `ProductHistoryChart` component using `react-chartjs-2` and `chart.js` rendering a beautiful curved line chart with gradient fills representing price adjustments over time.
+    - Created `LiveChangeFeed` component connecting to backend's SSE stream (`/products/live-changes`) showing real-time price change alerts and animated feeds.
+    - Created `Simulator` component supporting direct trigger of mock price adjustments via the `simulate-change/:id/:price` route.
+    - Assembled components inside `App.tsx` coordinating state sharing, live Toast banners, and event handlers.
+    - Compiled production build with zero TypeScript or Vite errors, writing bundle to backend's `/public` directory.
+    - Updated governance matrices and inventory documents to reflect completion.
+
+---
+
+## 2026-06-14 — Phase 3 Enterprise & Scale Upgrades Implemented
+
+  Tasks: P3-01 through P3-07 — Enterprise & Scale Upgrades
+  Status: COMPLETED
+
+  Changes Made:
+    - Added User model (id, email, passwordHash, role, createdAt) and Role enum (USER, ADMIN) to prisma/schema.prisma.
+    - Applied migration `20260614195017_init_auth` to PostgreSQL.
+    - Created AuthModule with Passport-JWT strategy, bcrypt password hashing, register/login endpoints.
+    - Created JwtAuthGuard, RolesGuard, @Roles() decorator, and Role enum TypeScript files.
+    - Created RegisterDto and LoginDto with class-validator decorators.
+    - Updated ApiKeyMiddleware to exempt /auth/*, /metrics, /api (Swagger) paths and accept JWT Bearer tokens alongside x-api-key.
+    - Applied JwtAuthGuard + RolesGuard on simulate-change endpoint, restricted to ADMIN role.
+    - Refactored AggregationService from local setInterval to BullMQ distributed queue with repeatable job scheduling.
+    - Instrumented aggregation cycles and provider fetches with Prometheus histograms and counters.
+    - Added cache hit/miss counter metrics to ProductsService.
+    - Created ObservabilityModule with @willsoto/nestjs-prometheus, registering custom metrics globally.
+    - Created prometheus/prometheus.yml scrape config targeting app:3000/metrics.
+    - Added Prometheus (port 9090) and Grafana (port 3001) services to docker-compose.yml.
+    - Updated app.module.ts with AuthModule, ObservabilityModule, and BullModule.forRoot() imports.
+    - Added JWT_SECRET, REDIS_HOST, REDIS_PORT to .env and .env.example.
+    - Updated aggregation.service.spec.ts with BullMQ queue and MetricsService mocks.
+    - Installed: @nestjs/jwt, @nestjs/passport, passport, passport-jwt, bcrypt, @nestjs/bullmq, bullmq, @willsoto/nestjs-prometheus, prom-client, @types/bcrypt, @types/passport-jwt.
+  Verification:
+    - npm run build: 0 errors
+    - npm run test: 14 tests passed, 4 suites passed
+

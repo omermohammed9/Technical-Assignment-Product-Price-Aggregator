@@ -4,6 +4,7 @@ import { PrismaService } from '../modules/prisma/prisma.service';
 import { GetProductsDto } from './dto/get-products.dto';
 import { GetProductChangesDto } from './dto/get-product-changes.dto';
 import { RedisService } from '../modules/redis/redis.service';
+import { MetricsService } from '../modules/observability/metrics.service';
 
 export interface ProductChangeEvent {
   id: number;
@@ -26,6 +27,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly metrics: MetricsService,
   ) {}
 
   // ── GET /products ──────────────────────────────────────────────────────────
@@ -37,11 +39,14 @@ export class ProductsService {
     const cachedData = await this.redis.get(cacheKey);
     if (cachedData) {
       this.logger.log(`Cache hit for key: ${cacheKey}`);
+      this.metrics.cacheOperations.inc({ type: 'hit' });
       try {
         return JSON.parse(cachedData);
       } catch (err) {
         this.logger.error('Failed to parse cached products JSON', err);
       }
+    } else {
+      this.metrics.cacheOperations.inc({ type: 'miss' });
     }
 
     const { page = 1, limit = 10, ...q } = filters;

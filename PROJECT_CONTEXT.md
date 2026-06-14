@@ -21,4 +21,4 @@ The **Product Price Aggregator** is a NestJS backend API that collects, normaliz
 
 ## 🎯 Current Status
 *   **Phase 1 (MVP Gaps)**: ✅ Complete — all original assignment requirements implemented
-*   **Phase 2 (Portfolio Upgrades)**: 🔲 Backlog — React dashboard, Redis cache, CI/CD
+*   **Phase 2 (Portfolio Upgrades)**: ✅ Complete — React dashboard, Redis cache, CI/CD, rate limiting, health endpoints

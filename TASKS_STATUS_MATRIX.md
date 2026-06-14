@@ -27,18 +27,18 @@ This tracker maps the original assignment requirements to implementation status,
 
 | Task ID | Task Description | Priority | Status | Date Completed |
 | :--- | :--- | :--- | :--- | :--- |
-| **P2-01** | React + Vite frontend dashboard (price charts with Chart.js/Recharts) | High | `[BACKLOG]` | - |
-| **P2-02** | Redis caching layer for `GET /products` (short TTL, invalidated on aggregation) | Medium | `[BACKLOG]` | - |
-| **P2-03** | CI/CD GitHub Actions pipeline (lint → test → build → Docker push) | Medium | `[BACKLOG]` | - |
-| **P2-04** | Health check endpoint (`/health`) with DB ping | Low | `[BACKLOG]` | - |
-| **P2-05** | Rate limiting via `@nestjs/throttler` | Low | `[BACKLOG]` | - |
-| **P2-06** | Structured logging with `pino` or `winston` | Low | `[BACKLOG]` | - |
-| **P2-07** | Postman collection or `curl` examples in docs | Low | `[BACKLOG]` | - |
+| **P2-01** | React + Vite frontend dashboard (price charts with Chart.js) | High | `[COMPLETED]` | 2026-06-14 |
+| **P2-02** | Redis caching layer for `GET /products` (short TTL, invalidated on aggregation) | Medium | `[COMPLETED]` | 2026-06-14 |
+| **P2-03** | CI/CD GitHub Actions pipeline (lint → test → build → Docker push) | Medium | `[COMPLETED]` | 2026-06-14 |
+| **P2-04** | Health check endpoint (`/health`) with DB ping | Low | `[COMPLETED]` | 2026-06-14 |
+| **P2-05** | Rate limiting via `@nestjs/throttler` | Low | `[COMPLETED]` | 2026-06-14 |
+| **P2-06** | Structured logging with `pino` or `winston` | Low | `[COMPLETED]` | 2026-06-14 |
+| **P2-07** | Postman collection or `curl` examples in docs | Low | `[COMPLETED]` | 2026-06-14 |
 
 ---
 
 ## 📈 Overall Progress
 *   **Total Tasks**: 19
-*   **Completed**: 12 (63%)
+*   **Completed**: 19 (100%)
 *   **In Progress**: 0 (0%)
-*   **Backlog**: 7 (37%)
+*   **Backlog**: 0 (0%)

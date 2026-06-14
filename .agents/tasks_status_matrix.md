@@ -22,13 +22,24 @@
 
 | Task ID | Description                                             | Priority | Status      | Date Completed |
 |---------|---------------------------------------------------------|----------|-------------|----------------|
-| P2-01   | React + Vite frontend with Chart.js price history       | High     | [BACKLOG]   | —              |
+| P2-01   | React + Vite frontend with Chart.js price history       | High     | [COMPLETED] | 2026-06-14     |
 | P2-02   | Redis caching for GET /products (short TTL)             | Medium   | [COMPLETED] | 2026-06-14     |
 | P2-03   | CI/CD GitHub Actions (lint → test → build → Docker)    | Medium   | [COMPLETED] | 2026-06-14     |
 | P2-04   | GET /health endpoint with DB ping                       | Low      | [COMPLETED] | 2026-06-14     |
 | P2-05   | @nestjs/throttler rate limiting                         | Low      | [COMPLETED] | 2026-06-14     |
 | P2-06   | Structured logging (pino or winston)                    | Low      | [COMPLETED] | 2026-06-14     |
 | P2-07   | Postman collection and E2E tests                        | Low      | [COMPLETED] | 2026-06-14     |
+## Phase 3 — Enterprise & Scale Upgrades
+
+| Task ID | Description                                             | Priority | Status      | Date Completed |
+|---------|---------------------------------------------------------|----------|-------------|----------------|
+| P3-01   | DB Schema updates & migrations (User table, Role enum)  | High     | [COMPLETED] | 2026-06-14     |
+| P3-02   | Implement AuthModule (Register, Login, Passport-JWT)    | High     | [COMPLETED] | 2026-06-14     |
+| P3-03   | Add JwtAuthGuard, RolesGuard, and protect routes         | High     | [COMPLETED] | 2026-06-14     |
+| P3-04   | Migrate AggregationService scheduler to BullMQ flow      | High     | [COMPLETED] | 2026-06-14     |
+| P3-05   | Set up Prometheus metrics via @willsoto/nestjs-prometheus| Medium   | [COMPLETED] | 2026-06-14     |
+| P3-06   | Integrate Prometheus and Grafana into docker-compose.yml| Medium   | [COMPLETED] | 2026-06-14     |
+| P3-07   | Update all governance docs and verify build & tests      | High     | [COMPLETED] | 2026-06-14     |
  
  ## Model Selection Guide
  
@@ -44,7 +55,7 @@
  | Schema redesign + migration        | Claude Sonnet       | Breaking change, needs full context       |
  
  ## Progress Summary
- - Total Tasks: 20
- - Completed: 19 (95%)
+ - Total Tasks: 27
+ - Completed: 27 (100%)
  - In Progress: 0 (0%)
- - Backlog: 1 (5%)
+ - Backlog: 0 (0%)

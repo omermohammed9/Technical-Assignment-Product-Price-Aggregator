@@ -1,73 +1,105 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { SchedulerRegistry } from '@nestjs/schedule';
+import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Queue, Job } from 'bullmq';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { ProvidersService } from '../providers/providers.service';
 import { RedisService } from '../modules/redis/redis.service';
+import { MetricsService } from '../modules/observability/metrics.service';
 
 /** Stale threshold: products not refreshed within this window are marked stale (ms) */
 const STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours default
 
+@Processor('aggregation')
 @Injectable()
-export class AggregationService implements OnModuleInit {
+export class AggregationService extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(AggregationService.name);
-  private isRunning = false;
   private readonly fetchInterval: number;
 
   constructor(
+    @InjectQueue('aggregation') private readonly aggregationQueue: Queue,
     private readonly prisma: PrismaService,
     private readonly providersService: ProvidersService,
-    private readonly schedulerRegistry: SchedulerRegistry,
     private readonly redis: RedisService,
+    private readonly metrics: MetricsService,
   ) {
+    super();
     this.fetchInterval = Number(process.env.DATA_FETCH_INTERVAL) || 300_000;
   }
 
-  onModuleInit() {
+  async onModuleInit() {
     this.logger.log(
-      `Aggregation scheduled every ${this.fetchInterval / 1000}s`,
+      `Aggregation scheduled every ${this.fetchInterval / 1000}s via BullMQ`,
     );
-    // Run an initial fetch immediately on startup
-    void this.handleAggregation();
-    this.scheduleAggregation();
-  }
 
-  // ── Scheduling ─────────────────────────────────────────────────────────────
-
-  private scheduleAggregation() {
-    const interval = setInterval(async () => {
-      await this.handleAggregation();
-    }, this.fetchInterval);
-
-    // Register with NestJS so it can be inspected/cancelled via SchedulerRegistry
-    this.schedulerRegistry.addInterval('price-aggregation', interval);
-  }
-
-  private async handleAggregation() {
-    if (this.isRunning) {
-      this.logger.warn('Skipping: previous aggregation still running.');
-      return;
+    // Remove any existing repeatable jobs and re-register
+    const existingRepeatables = await this.aggregationQueue.getRepeatableJobs();
+    for (const job of existingRepeatables) {
+      await this.aggregationQueue.removeRepeatableByKey(job.key);
     }
+
+    // Add a repeatable job
+    await this.aggregationQueue.add(
+      'aggregation-cycle',
+      {},
+      {
+        repeat: { every: this.fetchInterval },
+        removeOnComplete: { count: 10 },
+        removeOnFail: { count: 50 },
+      },
+    );
+
+    // Run an initial fetch immediately on startup
+    await this.aggregationQueue.add('aggregation-cycle', {}, {
+      removeOnComplete: { count: 10 },
+      removeOnFail: { count: 50 },
+    });
+  }
+
+  // ── BullMQ Worker Process ─────────────────────────────────────────────────
+
+  async process(job: Job): Promise<void> {
+    this.logger.log(`Processing BullMQ job: ${job.name} (id: ${job.id})`);
+    const cycleEnd = this.metrics.aggregationCycleDuration.startTimer();
+
     try {
-      this.isRunning = true;
-      this.logger.log('Starting data aggregation...');
       await this.aggregateData();
       await this.markStaleProducts();
       await this.redis.deletePattern('products:list:*');
+      this.metrics.aggregationCycleStatus.inc({ status: 'success' });
       this.logger.log('Aggregation cycle complete.');
     } catch (error) {
+      this.metrics.aggregationCycleStatus.inc({ status: 'failure' });
       this.logger.error(`Aggregation failed: ${(error as Error).message}`);
+      throw error; // Let BullMQ handle retries
     } finally {
-      this.isRunning = false;
+      cycleEnd();
     }
   }
 
   // ── Public entry point (used by tests) ────────────────────────────────────
 
   async aggregateData() {
+    const fetchProvider = async (
+      name: string,
+      fetchFn: () => Promise<unknown[]>,
+    ) => {
+      const end = this.metrics.providerFetchDuration.startTimer({ provider: name });
+      try {
+        const result = await this.fetchWithRetries(fetchFn);
+        this.metrics.providerFetchStatus.inc({ provider: name, status: 'success' });
+        return result;
+      } catch (err) {
+        this.metrics.providerFetchStatus.inc({ provider: name, status: 'failure' });
+        throw err;
+      } finally {
+        end();
+      }
+    };
+
     const [r1, r2, r3] = await Promise.allSettled([
-      this.fetchWithRetries(() => this.providersService.fetchProvider1()),
-      this.fetchWithRetries(() => this.providersService.fetchProvider2()),
-      this.fetchWithRetries(() => this.providersService.fetchProvider3()),
+      fetchProvider('provider-1', () => this.providersService.fetchProvider1()),
+      fetchProvider('provider-2', () => this.providersService.fetchProvider2()),
+      fetchProvider('provider-3', () => this.providersService.fetchProvider3()),
     ]);
 
     const raw = [
@@ -127,6 +159,7 @@ export class AggregationService implements OnModuleInit {
   //   Provider 2 (variant):    productName, summary, cost, inStock, updatedAt, vendor
   //   Provider 3 (variant):    title, details, listPrice, isAvailable, timestamp, source
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private normalizeProducts(products: any[]): any[] {
     return products
       .filter((p) => p.id !== undefined && p.id !== null)
@@ -150,6 +183,7 @@ export class AggregationService implements OnModuleInit {
 
   // ── Upsert with price/availability history ─────────────────────────────────
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async upsertProducts(data: any[]) {
     const existing = await this.prisma.product.findMany({
       where: { id: { in: data.map((p) => p.id) } },
@@ -219,3 +253,4 @@ export class AggregationService implements OnModuleInit {
     }
   }
 }
+

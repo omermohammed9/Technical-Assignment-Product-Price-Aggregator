@@ -58,7 +58,8 @@
 | src/health/health.controller.spec.ts             | implemented | test-agent          | jest                           |
 | prisma/schema.prisma                             | implemented | db-agent            | PostgreSQL                     |
 | prisma/migrations/                               | implemented | db-agent            | prisma migrate                 |
-| public/index.html                                | implemented | docs-agent          | SSE endpoint                   |
+| public/                                          | implemented | docs-agent          | Built React + Vite SPA assets  |
+| frontend/                                        | implemented | architect-agent     | React + Vite + Chart.js source |
 | test/app.e2e-spec.ts                             | implemented | test-agent          | supertest, AppModule           |
 | Dockerfile                                       | implemented | architect-agent     | node:20-alpine                 |
 | docker-compose.yml                               | implemented | architect-agent     | postgres:16-alpine, redis:7-alpine |

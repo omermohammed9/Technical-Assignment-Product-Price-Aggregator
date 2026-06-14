@@ -1,35 +1,31 @@
 # SPEC.md — Requirements Specification
 
-Status: COMPLETED
+Status: FINALIZED
 Last Updated: 2026-06-14
 Source of Truth: .agents/project-context.md
 
 ---
 
 ## Active Goal
-Implement E2E test coverage for health checks and rate limiting infrastructure, and create a comprehensive Postman API collection for all endpoints.
+Make the product price aggregator enterprise-ready by introducing JWT-based local authentication and Role-Based Access Control (RBAC), migrating scheduling from in-process intervals to BullMQ distributed concurrent background queues, and integrating system-wide metrics via Prometheus and Grafana.
 
 ## Requirements (In-Scope)
 
-  REQ-01: Implement Redis caching for `GET /products` with a 60s TTL, invalidated when aggregation completes or when prices are manually simulated. (COMPLETED)
-  REQ-02: Integrate rate limiting globally using `@nestjs/throttler`. (COMPLETED)
-  REQ-03: Integrate structured logging using `pino` (JSON in production, pretty-printed in development). (COMPLETED)
-  REQ-04: Add a health check endpoint `/health` verifying Database availability (exempt from API key middleware). (COMPLETED)
-  REQ-05: Configure a CI/CD pipeline workflow using GitHub Actions. (COMPLETED)
-  REQ-06: Create a Postman API collection JSON file (`product-price-aggregator.postman_collection.json`) in the root directory documenting all API endpoints, parameters, and headers (using variables for configurable keys like `{{api_key}}`).
-  REQ-07: Implement E2E test block in `test/app.e2e-spec.ts` verifying `GET /health` behaves correctly and returns the expected health/database connection schema.
-  REQ-08: Implement E2E test block in `test/app.e2e-spec.ts` validating global rate limiting configuration by making successive rapid requests to trigger a `429 Too Many Requests` status code.
+  REQ-16: Implement AuthModule with registration (POST /auth/register) and login (POST /auth/login) using bcrypt, JWT token signing, and a PostgreSQL User table with ADMIN and USER roles.
+  REQ-17: Implement JwtAuthGuard and RolesGuard. Standard routes (e.g. GET /products) require USER/ADMIN, while simulator routes (GET /products/simulate-change/*) require ADMIN role.
+  REQ-18: Exclude authentication paths (/auth/*), health checks (/health), and metrics (/metrics) from API key/JWT requirements, while allowing either a valid x-api-key or a valid Bearer JWT for all other endpoints.
+  REQ-19: Migrate scheduled aggregation logic to a BullMQ repeatable job. Establish a flow where a parent job complete-cycle runs markStaleProducts() and Redis cache invalidation after 3 sibling workers fetch provider-1, provider-2, and provider-3 concurrently.
+  REQ-20: Integrate @willsoto/nestjs-prometheus to expose a /metrics endpoint reporting cache hit/miss rates, total aggregation cycle durations/statuses, and individual provider fetch durations/statuses.
+  REQ-21: Configure Prometheus and Grafana containers in docker-compose.yml with dynamic configuration and pre-built operational dashboard mapping.
 
 ## Non-Goals (Out-of-Scope)
 
-  ❌ React + Vite frontend dashboard (this will be done in the next phase after backend is stable)
-  ❌ Breaking existing API contracts or routes
-  ❌ Exposing secrets or keys in the git repo
+  ❌ Deleting existing database migration history
+  ❌ Disabling rate limiting or structured logging
+  ❌ Exposing raw database credentials publicly
 
 ## Reference
 
   Architecture: .agents/system-map.md
   Phase Status: .agents/tasks_status_matrix.md
   Code Standards: .agents/rules/code-standards.md
-
-

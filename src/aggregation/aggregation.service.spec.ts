@@ -2,8 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AggregationService } from './aggregation.service';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { ProvidersService } from '../providers/providers.service';
-import { SchedulerRegistry } from '@nestjs/schedule';
 import { RedisService } from '../modules/redis/redis.service';
+import { MetricsService } from '../modules/observability/metrics.service';
+import { getQueueToken } from '@nestjs/bullmq';
 
 const mockPrismaService = {
   product: {
@@ -17,10 +18,6 @@ const mockPrismaService = {
   $transaction: jest
     .fn()
     .mockImplementation(async (fn) => fn(mockPrismaService)),
-};
-
-const mockSchedulerRegistry = {
-  addInterval: jest.fn(),
 };
 
 const mockRedisService = {
@@ -60,6 +57,20 @@ const mockProvidersService = {
   ]),
 };
 
+const mockQueue = {
+  add: jest.fn().mockResolvedValue({}),
+  getRepeatableJobs: jest.fn().mockResolvedValue([]),
+  removeRepeatableByKey: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockMetricsService = {
+  cacheOperations: { inc: jest.fn() },
+  aggregationCycleDuration: { startTimer: jest.fn().mockReturnValue(jest.fn()) },
+  aggregationCycleStatus: { inc: jest.fn() },
+  providerFetchDuration: { startTimer: jest.fn().mockReturnValue(jest.fn()) },
+  providerFetchStatus: { inc: jest.fn() },
+};
+
 describe('AggregationService', () => {
   let service: AggregationService;
 
@@ -68,10 +79,11 @@ describe('AggregationService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AggregationService,
+        { provide: getQueueToken('aggregation'), useValue: mockQueue },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: ProvidersService, useValue: mockProvidersService },
-        { provide: SchedulerRegistry, useValue: mockSchedulerRegistry },
         { provide: RedisService, useValue: mockRedisService },
+        { provide: MetricsService, useValue: mockMetricsService },
       ],
     }).compile();
 
@@ -95,11 +107,14 @@ describe('AggregationService', () => {
     expect(mockPrismaService.product.upsert).toHaveBeenCalled();
   });
 
-  it('should register the interval with SchedulerRegistry on init', () => {
-    service.onModuleInit();
-    expect(mockSchedulerRegistry.addInterval).toHaveBeenCalledWith(
-      'price-aggregation',
-      expect.any(Object),
+  it('should register a repeatable BullMQ job on init', async () => {
+    await service.onModuleInit();
+    expect(mockQueue.add).toHaveBeenCalledWith(
+      'aggregation-cycle',
+      {},
+      expect.objectContaining({
+        repeat: expect.objectContaining({ every: expect.any(Number) }),
+      }),
     );
   });
 
@@ -113,3 +128,4 @@ describe('AggregationService', () => {
     );
   });
 });
+

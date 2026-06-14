@@ -2,6 +2,7 @@ import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import { LoggerModule } from 'nestjs-pino';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { ProvidersModule } from './providers/providers.module';
@@ -9,6 +10,8 @@ import { AggregationModule } from './aggregation/aggregation.module';
 import { ProductsModule } from './products/products.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { ObservabilityModule } from './modules/observability/observability.module';
 import { ApiKeyMiddleware } from './middleware/api-key.middleware';
 
 @Module({
@@ -35,12 +38,20 @@ import { ApiKeyMiddleware } from './middleware/api-key.middleware';
             : undefined,
       },
     }),
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: Number(process.env.REDIS_PORT) || 6379,
+      },
+    }),
     PrismaModule,
     ProvidersModule,
     AggregationModule,
     ProductsModule,
     RedisModule,
     HealthModule,
+    AuthModule,
+    ObservabilityModule,
   ],
   providers: [
     {

@@ -10,6 +10,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(Logger));
 
+  // Enable CORS globally
+  app.enableCors();
+
   // ── Global validation pipe (enables class-validator + class-transformer) ──
   app.useGlobalPipes(
     new ValidationPipe({

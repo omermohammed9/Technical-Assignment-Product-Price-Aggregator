@@ -6,15 +6,15 @@ Last Updated: 2026-06-14
 
 ## Current Position
 
-  Phase: P2 (Portfolio Upgrades)
-  Task:  P2-07 — Postman Collection & E2E Tests
-  Status: COMPLETED
+  Phase: P3 (Enterprise & Scale Upgrades)
+  Task:  P3-02 — AuthModule, Guards, and Controllers
+  Status: EXECUTE
 
 ## Runtime Reminders
 
-  - Default model: Gemini Flash for doc/markdown work
-  - Keep rate limiting thresholds in mind when writing E2E tests
-  - Verify that no API key is checked on `/health` E2E checks
+  - Default model: Gemini Flash for doc/markdown work, Claude Sonnet for NestJS and Auth implementation
+  - Ensure ApiKeyMiddleware permits JWT authentication or x-api-key check
+  - Ensure Prometheus /metrics is Whitelisted from key checks
 
 ## Authority
 
@@ -24,4 +24,4 @@ Last Updated: 2026-06-14
 
 ## Next Steps (immediate)
 
-  1. Transition to the React + Vite frontend dashboard (P2-01) in the next phase.
+  1. Transition active model to Claude Sonnet to write the NestJS controllers, services, guards, and workers.

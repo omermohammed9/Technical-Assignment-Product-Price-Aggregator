@@ -6,12 +6,17 @@ import {
   ParseIntPipe,
   Query,
   Sse,
+  UseGuards,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { GetProductsDto } from './dto/get-products.dto';
 import { GetProductChangesDto } from './dto/get-product-changes.dto';
-import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiSecurity, ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Observable, map, merge, from } from 'rxjs';
+import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../modules/auth/guards/roles.guard';
+import { Roles } from '../modules/auth/decorators/roles.decorator';
+import { Role } from '../modules/auth/enums/role.enum';
 
 @ApiTags('Products')
 @ApiSecurity('api-key')
@@ -116,9 +121,13 @@ export class ProductsController {
 
   /**
    * GET /products/simulate-change/:id/:price — trigger a manual price update for testing SSE.
+   * Restricted to ADMIN role only.
    */
   @Get('simulate-change/:id/:price')
-  @ApiOperation({ summary: 'Simulate a price change to test the SSE stream' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Simulate a price change (ADMIN only)' })
   simulatePriceChange(
     @Param('id', ParseIntPipe) id: number,
     @Param('price', ParseIntPipe) price: number,

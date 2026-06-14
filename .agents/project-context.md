@@ -66,9 +66,22 @@ real-time SSE stream. Target audience: backend engineering portfolio reviewers.
 | Phase | Description                    | Status      |
 |-------|--------------------------------|-------------|
 | P1    | Core assignment gaps (MVP)     | COMPLETED   |
-| P2    | Portfolio upgrades             | IN_PROGRESS |
+| P2    | Portfolio upgrades             | COMPLETED   |
+| P3    | Enterprise & Scale Upgrades    | COMPLETED   |
 
-### P2 Completed Milestones (Backend)
+### P3 Completed Milestones
+  ✅ JWT-based local authentication with bcrypt password hashing
+  ✅ Role-Based Access Control (ADMIN, USER) with JwtAuthGuard and RolesGuard
+  ✅ ApiKeyMiddleware updated to accept x-api-key OR JWT Bearer tokens
+  ✅ Simulator endpoint restricted to ADMIN role
+  ✅ BullMQ distributed queue replacing local setInterval scheduler
+  ✅ Prometheus metrics via @willsoto/nestjs-prometheus (/metrics endpoint)
+  ✅ Cache hit/miss, aggregation cycle, and provider fetch metrics
+  ✅ Prometheus + Grafana containers in docker-compose.yml
+  ✅ User model and Role enum added to Prisma schema
+
+### P2 Completed Milestones
+  ✅ React + Vite frontend dashboard (Chart.js integration, live SSE stream)
   ✅ Redis caching layer for GET /products (resilient custom client)
   ✅ Global rate limiting via @nestjs/throttler (100 req/min)
   ✅ Structured logging via Pino and nestjs-pino (JSON in prod, pretty in dev)
