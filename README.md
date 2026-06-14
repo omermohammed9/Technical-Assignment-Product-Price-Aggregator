@@ -125,11 +125,14 @@ cd product-price-aggregator
 # 2. Copy env file (edit values as needed)
 cp .env.example .env
 
-# 3. Start Postgres + App
-docker compose up --build
+# 3. Start Postgres, Redis, App, Prometheus, and Grafana
+docker compose up --build -d
 
 # App will be available at http://localhost:3000
+# React Dashboard at http://localhost:3000
 # Swagger at http://localhost:3000/api
+# Prometheus Metrics at http://localhost:9090
+# Grafana Dashboards at http://localhost:3001
 ```
 
 ### Option B — Local development
@@ -196,40 +199,37 @@ npm run test:e2e      # end-to-end tests (requires running DB)
 
 ## API Endpoints
 
-All endpoints require the `x-api-key` header except `GET /products/live-changes` and `GET /public/*`.
+The API supports dual authentication. You must provide either an `x-api-key` header or an `Authorization: Bearer <jwt>` token for all endpoints except `GET /products/live-changes`, `/auth/*`, `/metrics`, and `/public/*`.
 
 | Method | Path | Description |
 |---|---|---|
+| `POST` | `/auth/register` | Register a new user. Pass `{"email", "password", "role"}` (`role` defaults to `USER`, pass `ADMIN` for full access) |
+| `POST` | `/auth/login` | Login to receive a JWT access token. Pass `{"email", "password"}` |
 | `GET` | `/products` | List products. Query: `name`, `minPrice`, `maxPrice`, `availability`, `provider`, `page`, `limit` |
 | `GET` | `/products/:id` | Product detail with full price history |
 | `GET` | `/products/changes` | Price & availability changes. Query: `startDate`, `endDate`, `page`, `limit` |
 | `GET` | `/products/live-changes` | **SSE** — streams live price change events |
-| `GET` | `/products/simulate-change/:id/:price` | Trigger a manual price change (testing SSE) |
+| `GET` | `/products/simulate-change/:id/:price` | Trigger a manual price change. **Requires ADMIN role JWT.** |
 | `GET` | `/mock-providers/provider1` | Raw Provider 1 data (debug) |
 | `GET` | `/mock-providers/provider2` | Raw Provider 2 data (debug) |
 
 ### Example requests
 
 ```bash
-# List available products
+# Register a new admin user
+curl -X POST -H "Content-Type: application/json" -d '{"email":"admin@test.com", "password":"password123", "role":"ADMIN"}' http://localhost:3000/auth/register
+
+# Login to get JWT
+curl -X POST -H "Content-Type: application/json" -d '{"email":"admin@test.com", "password":"password123"}' http://localhost:3000/auth/login
+
+# List available products (Using API Key)
 curl -H "x-api-key: supersecureapikey123" http://localhost:3000/products
 
-# Filter by price range
-curl -H "x-api-key: supersecureapikey123" \
-  "http://localhost:3000/products?minPrice=10&maxPrice=50&availability=true"
-
-# Get price history for product ID 1
-curl -H "x-api-key: supersecureapikey123" http://localhost:3000/products/1
-
-# Get changes in last 24h
-curl -H "x-api-key: supersecureapikey123" \
-  "http://localhost:3000/products/changes?startDate=2026-06-12T00:00:00Z&endDate=2026-06-13T23:59:59Z"
-
-# Trigger a price change (will appear in SSE stream)
-curl -H "x-api-key: supersecureapikey123" \
+# Trigger a price change (Requires ADMIN JWT token)
+curl -H "Authorization: Bearer <your-jwt-token>" \
   http://localhost:3000/products/simulate-change/1/29
 
-# Subscribe to SSE (no API key needed)
+# Subscribe to SSE (no auth needed)
 curl -N http://localhost:3000/products/live-changes
 ```
 
@@ -243,7 +243,7 @@ Interactive API docs are available at:
 http://localhost:3000/api
 ```
 
-Click **Authorize** → enter your `API_KEY` value → all endpoints become testable in-browser.
+Click **Authorize** → enter your `API_KEY` value, or your `Bearer <jwt>` token → all endpoints become testable in-browser.
 
 ---
 
