@@ -1,6 +1,6 @@
 # SPEC.md — Requirements Specification
 
-Status: FINALIZED
+Status: COMPLETED
 Last Updated: 2026-06-14
 Source of Truth: .agents/project-context.md
 
