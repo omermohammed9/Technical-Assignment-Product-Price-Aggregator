@@ -1,33 +1,54 @@
-import { Controller, Get, Param, Query, Sse } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  MessageEvent,
+  Param,
+  ParseIntPipe,
+  Query,
+  Sse,
+} from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { GetProductsDto } from './dto/get-products.dto';
 import { GetProductChangesDto } from './dto/get-product-changes.dto';
-import { ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Observable } from 'rxjs';
+import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { Observable, map, merge, from } from 'rxjs';
 
 @ApiTags('Products')
+@ApiSecurity('api-key')
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   /**
-   * SSE Endpoint: Listen for live product changes.
+   * SSE: streams live price-change events to connected clients.
+   * On connect, immediately sends the latest 10 changes as a snapshot,
+   * then continues pushing new events as they occur.
    */
   @Sse('live-changes')
-  liveChanges(): Observable<any> {
-    return new Observable((observer) => {
-      const sendUpdate = (data: any) => observer.next({ data });
+  @ApiOperation({
+    summary: 'SSE stream of live price changes (no API key required)',
+  })
+  liveChanges(): Observable<MessageEvent> {
+    // Snapshot of recent changes sent immediately on connect
+    const snapshot$ = from(this.productsService.getLatestChanges()).pipe(
+      map((changes) => ({ data: JSON.stringify(changes) }) as MessageEvent),
+    );
 
-      this.productsService.getLatestChanges().then(sendUpdate);
+    // Ongoing live events pushed via Subject
+    const live$ = this.productsService.productChanges$.pipe(
+      map((event) => ({ data: JSON.stringify(event) }) as MessageEvent),
+    );
 
-      return () => {};
-    });
+    return merge(snapshot$, live$);
   }
 
   /**
-   * Fetch all products with optional filters and pagination.
+   * GET /products — filterable, paginated product list.
    */
   @Get()
+  @ApiOperation({
+    summary: 'List all products with optional filters and pagination',
+  })
   @ApiQuery({ name: 'name', required: false, type: String })
   @ApiQuery({ name: 'minPrice', required: false, type: Number })
   @ApiQuery({ name: 'maxPrice', required: false, type: Number })
@@ -37,66 +58,71 @@ export class ProductsController {
     name: 'page',
     required: false,
     type: Number,
-    description: 'Page number for pagination (default: 1)',
+    description: 'Default: 1',
   })
   @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Number of products per page (default: 10)',
+    description: 'Default: 10',
   })
-  async getAllProducts(@Query() filters: GetProductsDto) {
+  getAllProducts(@Query() filters: GetProductsDto) {
     return this.productsService.getAllProducts(filters);
   }
 
   /**
-   * Fetch product changes within a specified date range with pagination.
+   * GET /products/changes — price and availability changes within a timeframe.
    */
   @Get('changes')
+  @ApiOperation({
+    summary: 'Get products with price or availability changes in a timeframe',
+  })
   @ApiQuery({
     name: 'startDate',
-    required: true,
+    required: false,
     type: String,
-    description: 'Start date in YYYY-MM-DD format',
+    description: 'ISO date string',
   })
   @ApiQuery({
     name: 'endDate',
-    required: true,
+    required: false,
     type: String,
-    description: 'End date in YYYY-MM-DD format',
+    description: 'ISO date string',
   })
   @ApiQuery({
     name: 'page',
     required: false,
     type: Number,
-    description: 'Page number for pagination (default: 1)',
+    description: 'Default: 1',
   })
   @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Number of records per page (default: 10)',
+    description: 'Default: 10',
   })
-  async getProductChanges(@Query() filters: GetProductChangesDto) {
+  getProductChanges(@Query() filters: GetProductChangesDto) {
     return this.productsService.getProductChanges(filters);
   }
 
   /**
-   * Fetch a single product by ID, including price history.
+   * GET /products/:id — single product with full price history.
    */
   @Get(':id')
-  async getProductById(@Param('id') id: number) {
-    return this.productsService.getProductById(Number(id));
+  @ApiOperation({ summary: 'Get a product by ID including its price history' })
+  getProductById(@Param('id', ParseIntPipe) id: number) {
+    return this.productsService.getProductById(id);
   }
 
   /**
-   * Simulate a product price change for testing SSE.
+   * GET /products/simulate-change/:id/:price — trigger a manual price update for testing SSE.
    */
   @Get('simulate-change/:id/:price')
-  async simulatePriceChange(
-    @Param('id') id: number,
-    @Param('price') price: number,
+  @ApiOperation({ summary: 'Simulate a price change to test the SSE stream' })
+  simulatePriceChange(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('price', ParseIntPipe) price: number,
   ) {
-    return this.productsService.updateProductPrice(Number(id), Number(price));
+    return this.productsService.updateProductPrice(id, price);
   }
 }

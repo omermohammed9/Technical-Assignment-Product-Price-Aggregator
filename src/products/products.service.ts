@@ -1,172 +1,202 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Subject } from 'rxjs';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { GetProductsDto } from './dto/get-products.dto';
 import { GetProductChangesDto } from './dto/get-product-changes.dto';
-import { EventEmitter } from 'events';
+import { RedisService } from '../modules/redis/redis.service';
+
+export interface ProductChangeEvent {
+  id: number;
+  name: string;
+  oldPrice: number;
+  newPrice: number;
+  timestamp: Date;
+}
 
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
-  private eventEmitter = new EventEmitter(); // Real-time events
-
-  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Fetch all products with optional filters and pagination.
+   * Hot Observable that SSE clients subscribe to.
+   * AggregationService pushes events here; the controller streams them to clients.
    */
+  readonly productChanges$ = new Subject<ProductChangeEvent>();
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
+
+  // ── GET /products ──────────────────────────────────────────────────────────
+
   async getAllProducts(filters: GetProductsDto) {
-    this.logger.log('Filtering products with:', filters);
+    this.logger.log('getAllProducts', filters);
 
-    const { page = 1, limit = 10, ...queryFilters } = filters;
+    const cacheKey = `products:list:${JSON.stringify(filters)}`;
+    const cachedData = await this.redis.get(cacheKey);
+    if (cachedData) {
+      this.logger.log(`Cache hit for key: ${cacheKey}`);
+      try {
+        return JSON.parse(cachedData);
+      } catch (err) {
+        this.logger.error('Failed to parse cached products JSON', err);
+      }
+    }
+
+    const { page = 1, limit = 10, ...q } = filters;
     const skip = (page - 1) * limit;
 
-    const whereClause: any = {
-      ...(queryFilters.name && {
-        name: { contains: queryFilters.name, mode: 'insensitive' },
+    const where: any = {
+      ...(q.name && { name: { contains: q.name, mode: 'insensitive' } }),
+      ...(q.minPrice !== undefined && { price: { gte: Number(q.minPrice) } }),
+      ...(q.maxPrice !== undefined && { price: { lte: Number(q.maxPrice) } }),
+      ...(typeof q.availability !== 'undefined' && {
+        availability:
+          q.availability === true || q.availability === ('true' as any),
       }),
-      ...(queryFilters.minPrice && {
-        price: { gte: Number(queryFilters.minPrice) },
-      }),
-      ...(queryFilters.maxPrice && {
-        price: { lte: Number(queryFilters.maxPrice) },
-      }),
-      ...(typeof queryFilters.availability === 'string' && {
-        availability: queryFilters.availability === 'true',
-      }),
-      ...(queryFilters.provider && {
-        provider: { contains: queryFilters.provider, mode: 'insensitive' },
+      ...(q.provider && {
+        provider: { contains: q.provider, mode: 'insensitive' },
       }),
     };
 
-    const total = await this.prisma.product.count({ where: whereClause });
-    const products = await this.prisma.product.findMany({
-      where: whereClause,
-      skip,
-      take: limit,
-    });
+    const [total, data] = await Promise.all([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        skip,
+        take: Number(limit),
+        orderBy: { name: 'asc' },
+      }),
+    ]);
 
-    return {
-      page,
-      limit,
+    const result = {
+      page: Number(page),
+      limit: Number(limit),
       total,
       totalPages: Math.ceil(total / limit),
-      data: products,
+      data,
     };
+
+    // Store in cache for 60 seconds (short TTL)
+    await this.redis.set(cacheKey, JSON.stringify(result), 60);
+
+    return result;
   }
 
-  /**
-   * Fetch a single product by ID including price history.
-   */
+  // ── GET /products/:id ──────────────────────────────────────────────────────
+
   async getProductById(id: number) {
-    return this.prisma.product.findUnique({
+    const product = await this.prisma.product.findUnique({
       where: { id },
-      include: { history: true },
+      include: { history: { orderBy: { timestamp: 'desc' } } },
     });
+    if (!product) throw new NotFoundException(`Product #${id} not found`);
+    return product;
   }
 
-  /**
-   * Fetch products with price or availability changes within a timeframe and pagination.
-   */
-  async getProductChanges(filters: GetProductChangesDto) {
-    this.logger.log('Fetching product changes:', filters);
+  // ── GET /products/changes ──────────────────────────────────────────────────
+  //
+  // Returns price AND availability changes within the requested timeframe.
 
-    const { page = 1, limit = 10, ...queryFilters } = filters;
+  async getProductChanges(filters: GetProductChangesDto) {
+    this.logger.log('getProductChanges', filters);
+
+    const { page = 1, limit = 10, startDate, endDate } = filters;
     const skip = (page - 1) * limit;
 
-    const whereClause: any = {
-      ...(queryFilters.startDate && {
-        timestamp: { gte: new Date(queryFilters.startDate) },
-      }),
-      ...(queryFilters.endDate && {
-        timestamp: { lte: new Date(queryFilters.endDate) },
-      }),
+    const where: any = {
+      ...(startDate && { timestamp: { gte: new Date(startDate) } }),
+      ...(endDate && { timestamp: { lte: new Date(endDate) } }),
     };
 
-    const total = await this.prisma.priceHistory.count({ where: whereClause });
-    const changes = await this.prisma.priceHistory.findMany({
-      where: whereClause,
-      include: { Product: true },
-      orderBy: { timestamp: 'desc' },
-      skip,
-      take: limit,
-    });
+    const [total, changes] = await Promise.all([
+      this.prisma.priceHistory.count({ where }),
+      this.prisma.priceHistory.findMany({
+        where,
+        include: { Product: true },
+        orderBy: { timestamp: 'desc' },
+        skip,
+        take: Number(limit),
+      }),
+    ]);
 
     return {
-      page,
-      limit,
+      page: Number(page),
+      limit: Number(limit),
       total,
       totalPages: Math.ceil(total / limit),
-      data: changes.map((change) => ({
-        id: change.Product?.id,
-        name: change.Product?.name ?? 'Unknown Product',
-        oldPrice: change.price,
-        newPrice: change.Product?.price ?? 0,
-        timestamp: change.timestamp,
+      data: changes.map((c) => ({
+        productId: c.Product?.id,
+        name: c.Product?.name ?? 'Unknown',
+        oldPrice: c.price,
+        currentPrice: c.Product?.price ?? 0,
+        availabilityChanged: c.availabilityChanged,
+        timestamp: c.timestamp,
       })),
     };
   }
 
-  /**
-   * Get the most recent price changes for real-time updates.
-   */
-  async getLatestChanges() {
-    const latestChanges = await this.prisma.priceHistory.findMany({
-      take: 5,
+  // ── SSE: GET /products/live-changes ───────────────────────────────────────
+  //
+  // Returns the Subject as an Observable so the controller can pipe it to SSE.
+  // External callers (e.g. AggregationService) push events via emitChange().
+
+  emitChange(event: ProductChangeEvent) {
+    this.productChanges$.next(event);
+  }
+
+  async getLatestChanges(): Promise<ProductChangeEvent[]> {
+    const rows = await this.prisma.priceHistory.findMany({
+      take: 10,
       orderBy: { timestamp: 'desc' },
       include: { Product: true },
     });
-
-    return latestChanges.map((change) => ({
-      id: change.Product?.id,
-      name: change.Product?.name ?? 'Unknown Product',
-      oldPrice: change.price,
-      newPrice: change.Product?.price ?? 0,
-      timestamp: change.timestamp,
+    return rows.map((r) => ({
+      id: r.Product?.id ?? 0,
+      name: r.Product?.name ?? 'Unknown',
+      oldPrice: r.price,
+      newPrice: r.Product?.price ?? 0,
+      timestamp: r.timestamp,
     }));
   }
 
-  /**
-   * Update a product's price & store price history in a single transaction.
-   */
+  // ── Price update (used by simulate-change route) ───────────────────────────
+
   async updateProductPrice(productId: number, newPrice: number) {
-    const existingProduct = await this.prisma.product.findUnique({
+    const existing = await this.prisma.product.findUnique({
       where: { id: productId },
     });
+    if (!existing)
+      throw new NotFoundException(`Product #${productId} not found`);
+    if (existing.price === newPrice) return existing;
 
-    if (!existingProduct) {
-      this.logger.warn(`Product ID ${productId} not found.`);
-      return null;
-    }
-
-    if (existingProduct.price === newPrice) {
-      this.logger.log(`No price change detected for Product ${productId}.`);
-      return existingProduct;
-    }
-
-    this.logger.log(
-      `Updating price for Product ${productId} from $${existingProduct.price} to $${newPrice}`,
-    );
-
-    // Emit real-time update event
-    this.eventEmitter.emit('product-update', {
-      id: productId,
-      name: existingProduct.name,
-      oldPrice: existingProduct.price,
-      newPrice,
-      timestamp: new Date(),
-    });
-
-    return this.prisma.$transaction(async (tx) => {
-      // Store price change history
+    const updated = await this.prisma.$transaction(async (tx) => {
       await tx.priceHistory.create({
-        data: { productId: existingProduct.id, price: existingProduct.price },
+        data: {
+          productId: existing.id,
+          price: existing.price,
+          availabilityChanged: false,
+        },
       });
-
-      // Update the product price
-      return tx.product.update({
+      const updatedProduct = await tx.product.update({
         where: { id: productId },
         data: { price: newPrice },
       });
+
+      // Push to SSE stream
+      this.emitChange({
+        id: productId,
+        name: existing.name,
+        oldPrice: existing.price,
+        newPrice,
+        timestamp: new Date(),
+      });
+
+      return updatedProduct;
     });
+
+    await this.redis.deletePattern('products:list:*');
+    return updated;
   }
 }

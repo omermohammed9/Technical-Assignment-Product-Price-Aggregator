@@ -2,9 +2,11 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaService } from '../modules/prisma/prisma.service';
 import { ProvidersService } from '../providers/providers.service';
-import * as dotenv from 'dotenv';
+import { RedisService } from '../modules/redis/redis.service';
 
-dotenv.config();
+/** Stale threshold: products not refreshed within this window are marked stale (ms) */
+const STALE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours default
+
 @Injectable()
 export class AggregationService implements OnModuleInit {
   private readonly logger = new Logger(AggregationService.name);
@@ -15,196 +17,205 @@ export class AggregationService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly providersService: ProvidersService,
     private readonly schedulerRegistry: SchedulerRegistry,
+    private readonly redis: RedisService,
   ) {
-    this.fetchInterval = Number(process.env.DATA_FETCH_INTERVAL) || 300000; // Default 5 minutes
+    this.fetchInterval = Number(process.env.DATA_FETCH_INTERVAL) || 300_000;
   }
 
-  /**
-   * Initializes aggregation job on application start.
-   */
   onModuleInit() {
     this.logger.log(
-      `Configuring aggregation job every ${this.fetchInterval / 1000} seconds`,
+      `Aggregation scheduled every ${this.fetchInterval / 1000}s`,
     );
+    // Run an initial fetch immediately on startup
+    void this.handleAggregation();
     this.scheduleAggregation();
   }
 
-  /**
-   * Dynamically schedules aggregation based on the configured interval.
-   */
+  // ── Scheduling ─────────────────────────────────────────────────────────────
+
   private scheduleAggregation() {
-    setInterval(async () => {
+    const interval = setInterval(async () => {
       await this.handleAggregation();
     }, this.fetchInterval);
+
+    // Register with NestJS so it can be inspected/cancelled via SchedulerRegistry
+    this.schedulerRegistry.addInterval('price-aggregation', interval);
   }
 
-  /**
-   * Ensures only one aggregation runs at a time.
-   */
   private async handleAggregation() {
     if (this.isRunning) {
-      this.logger.warn('Skipping aggregation: Previous job still running.');
+      this.logger.warn('Skipping: previous aggregation still running.');
       return;
     }
-
     try {
       this.isRunning = true;
-      this.logger.log('Starting periodic data aggregation...');
+      this.logger.log('Starting data aggregation...');
       await this.aggregateData();
-      this.logger.log('Data aggregation completed.');
+      await this.markStaleProducts();
+      await this.redis.deletePattern('products:list:*');
+      this.logger.log('Aggregation cycle complete.');
     } catch (error) {
-      this.logger.error(`Aggregation failed: ${error.message}`);
+      this.logger.error(`Aggregation failed: ${(error as Error).message}`);
     } finally {
       this.isRunning = false;
     }
   }
 
-  /**
-   * Fetch, normalize, and store product data.
-   */
+  // ── Public entry point (used by tests) ────────────────────────────────────
+
   async aggregateData() {
-    try {
-      this.logger.log('Fetching data from providers...');
+    const [r1, r2, r3] = await Promise.allSettled([
+      this.fetchWithRetries(() => this.providersService.fetchProvider1()),
+      this.fetchWithRetries(() => this.providersService.fetchProvider2()),
+      this.fetchWithRetries(() => this.providersService.fetchProvider3()),
+    ]);
 
-      // Fetch provider data concurrently with retry logic
-      const [provider1Data, provider2Data, provider3Data] =
-        await Promise.allSettled([
-          this.fetchWithRetries(() => this.providersService.fetchProvider1()),
-          this.fetchWithRetries(() => this.providersService.fetchProvider2()),
-          this.fetchWithRetries(() => this.providersService.fetchProvider3()),
-        ]);
+    const raw = [
+      ...(r1.status === 'fulfilled' ? (r1.value ?? []) : []),
+      ...(r2.status === 'fulfilled' ? (r2.value ?? []) : []),
+      ...(r3.status === 'fulfilled' ? (r3.value ?? []) : []),
+    ];
 
-      // Convert Settled Promises to Valid Data
-      const products = [
-        ...(provider1Data.status === 'fulfilled'
-          ? (provider1Data.value ?? [])
-          : []),
-        ...(provider2Data.status === 'fulfilled'
-          ? (provider2Data.value ?? [])
-          : []),
-        ...(provider3Data.status === 'fulfilled'
-          ? (provider3Data.value ?? [])
-          : []),
-      ];
-
-      if (!products.length) {
-        this.logger.warn('No valid product data received.');
-        return;
-      }
-
-      // Normalize product data
-      const aggregatedData = this.normalizeProducts(products);
-      if (!aggregatedData.length) {
-        this.logger.warn('No valid products after normalization.');
-        return;
-      }
-
-      this.logger.debug(
-        `Normalized Products: ${JSON.stringify(aggregatedData, null, 2)}`,
-      );
-
-      // Upsert product data
-      await this.upsertProducts(aggregatedData);
-      this.logger.log(
-        `Successfully aggregated ${aggregatedData.length} products.`,
-      );
-    } catch (error) {
-      this.logger.error(`Aggregation failed: ${error.message}`);
+    if (!raw.length) {
+      this.logger.warn('No product data received from any provider.');
+      return;
     }
+
+    const normalized = this.normalizeProducts(raw);
+    if (!normalized.length) {
+      this.logger.warn('No valid products after normalization.');
+      return;
+    }
+
+    await this.upsertProducts(normalized);
+    this.logger.log(`Aggregated ${normalized.length} products.`);
   }
 
-  /**
-   * Fetch data with retry logic.
-   */
+  // ── Retry logic ────────────────────────────────────────────────────────────
+
   private async fetchWithRetries<T>(
     fetchFn: () => Promise<T>,
     retries = 3,
-    delay = 1000,
+    baseDelay = 1000,
   ): Promise<T | []> {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         return await fetchFn();
-      } catch (error) {
-        this.logger.warn(`Attempt ${attempt + 1} failed: Retrying...`);
+      } catch (err) {
+        this.logger.warn(
+          `Attempt ${attempt + 1}/${retries} failed: ${(err as Error).message}`,
+        );
         if (attempt === retries - 1) {
-          this.logger.error('Final attempt failed:', error);
+          this.logger.error('All retry attempts exhausted.', err);
           return [];
         }
-        await new Promise((resolve) =>
-          setTimeout(resolve, delay * (attempt + 1)),
+        // Exponential backoff: 1s, 2s, 4s …
+        await new Promise((r) =>
+          setTimeout(r, baseDelay * Math.pow(2, attempt)),
         );
       }
     }
+    return [];
   }
 
-  /**
-   * Normalize product data before storage.
-   */
+  // ── Normalization ──────────────────────────────────────────────────────────
+  //
+  // Each provider uses different field names. This function maps all shapes
+  // into a single canonical format before storage.
+  //
+  //   Provider 1 (canonical):  name, description, price, availability, lastUpdated, provider
+  //   Provider 2 (variant):    productName, summary, cost, inStock, updatedAt, vendor
+  //   Provider 3 (variant):    title, details, listPrice, isAvailable, timestamp, source
+
   private normalizeProducts(products: any[]): any[] {
     return products
-      .filter((p) => p.id) // Remove invalid products
-      .map((product) => ({
-        id: product.id,
-        name: product.name ?? 'Unknown',
-        description: product.description ?? 'No description',
-        price: product.price ?? 0,
-        currency: product.currency ?? 'USD',
-        availability: product.availability ?? false,
-        provider: product.provider ?? 'Unknown',
-        lastUpdated: product.lastUpdated
-          ? new Date(product.lastUpdated)
-          : new Date(),
+      .filter((p) => p.id !== undefined && p.id !== null)
+      .map((p) => ({
+        id: Number(p.id),
+        name: p.name ?? p.productName ?? p.title ?? 'Unknown',
+        description:
+          p.description ?? p.summary ?? p.details ?? 'No description',
+        price: Number(p.price ?? p.cost ?? p.listPrice ?? 0),
+        currency: p.currency ?? 'USD',
+        availability: Boolean(
+          p.availability ?? p.inStock ?? p.isAvailable ?? false,
+        ),
+        provider: p.provider ?? p.vendor ?? p.source ?? 'Unknown',
+        lastUpdated: new Date(
+          p.lastUpdated ?? p.updatedAt ?? p.timestamp ?? new Date(),
+        ),
         lastFetched: new Date(),
       }));
   }
 
-  /**
-   * Store product & price history in the database.
-   */
-  private async upsertProducts(aggregatedData: any[]) {
-    // Fetch existing product data first
-    const existingProducts = await this.prisma.product.findMany({
-      where: { id: { in: aggregatedData.map((p) => p.id) } },
-      select: { id: true, price: true },
+  // ── Upsert with price/availability history ─────────────────────────────────
+
+  private async upsertProducts(data: any[]) {
+    const existing = await this.prisma.product.findMany({
+      where: { id: { in: data.map((p) => p.id) } },
+      select: { id: true, price: true, availability: true },
     });
 
-    const priceHistoryInserts: any[] = [];
+    const existingMap = new Map(existing.map((e) => [e.id, e]));
+    const historyInserts: {
+      productId: number;
+      price: number;
+      availabilityChanged: boolean;
+    }[] = [];
 
-    // Identify price changes
-    for (const existingProduct of existingProducts) {
-      const newProduct = aggregatedData.find(
-        (p) => p.id === existingProduct.id,
-      );
-      if (newProduct && newProduct.price !== existingProduct.price) {
-        priceHistoryInserts.push({
-          productId: existingProduct.id,
-          price: existingProduct.price, // Store old price
+    for (const newProd of data) {
+      const prev = existingMap.get(newProd.id);
+      if (!prev) continue;
+
+      const priceChanged = prev.price !== newProd.price;
+      const availChanged = prev.availability !== newProd.availability;
+
+      if (priceChanged || availChanged) {
+        historyInserts.push({
+          productId: prev.id,
+          price: prev.price, // store OLD price
+          availabilityChanged: availChanged,
         });
       }
     }
 
-    // Perform database transaction
     await this.prisma.$transaction(async (tx) => {
-      if (priceHistoryInserts.length > 0) {
-        await tx.priceHistory.createMany({ data: priceHistoryInserts });
+      if (historyInserts.length > 0) {
+        await tx.priceHistory.createMany({ data: historyInserts });
       }
 
-      for (const product of aggregatedData) {
+      for (const p of data) {
         await tx.product.upsert({
-          where: { id: product.id },
+          where: { id: p.id },
           update: {
-            name: product.name,
-            description: product.description,
-            price: product.price,
-            currency: product.currency,
-            availability: product.availability,
-            provider: product.provider,
-            lastUpdated: product.lastUpdated,
-            lastFetched: product.lastFetched,
+            name: p.name,
+            description: p.description,
+            price: p.price,
+            currency: p.currency,
+            availability: p.availability,
+            provider: p.provider,
+            lastUpdated: p.lastUpdated,
+            lastFetched: p.lastFetched,
+            isStale: false, // freshly fetched — mark as fresh
           },
-          create: { ...product },
+          create: { ...p, isStale: false },
         });
       }
     });
+  }
+
+  // ── Stale detection ────────────────────────────────────────────────────────
+  //
+  // Products whose lastFetched is older than STALE_THRESHOLD_MS are flagged.
+
+  async markStaleProducts() {
+    const threshold = new Date(Date.now() - STALE_THRESHOLD_MS);
+    const result = await this.prisma.product.updateMany({
+      where: { lastFetched: { lt: threshold }, isStale: false },
+      data: { isStale: true },
+    });
+    if (result.count > 0) {
+      this.logger.warn(`Marked ${result.count} product(s) as stale.`);
+    }
   }
 }
