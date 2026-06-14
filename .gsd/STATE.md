@@ -6,16 +6,15 @@ Last Updated: 2026-06-14
 
 ## Current Position
 
-  Phase: P1 (Core Assignment Gaps)
-  Task:  P1-13 — Write agent governance files (.agents/, .gsd/, root)
+  Phase: P2 (Portfolio Upgrades)
+  Task:  P2-07 — Postman Collection & E2E Tests
   Status: COMPLETED
 
 ## Runtime Reminders
 
   - Default model: Gemini Flash for doc/markdown work
-  - No code files may be touched in this task
-  - Write files in dependency order (see agent_files_spec.md §1 Master Index)
-  - After all files are written: mark P1-13 [COMPLETED] in tasks_status_matrix.md
+  - Keep rate limiting thresholds in mind when writing E2E tests
+  - Verify that no API key is checked on `/health` E2E checks
 
 ## Authority
 
@@ -25,21 +24,4 @@ Last Updated: 2026-06-14
 
 ## Next Steps (immediate)
 
-  1. Write .agents/rules/code-standards.md
-  2. Write .agents/rules/strict-resource-management.md
-  3. Write .agents/rules/documentation-drift-guard.md
-  4. Write .agents/rules/security-engineering-rules.md
-  5. Write .agents/rules/AGENTS.md
-  6. Write .agents/workflow.md
-  7. Write .agents/project-context.md
-  8. Write .agents/system-map.md
-  9. Write .agents/tasks_status_matrix.md
-  10. Write .agents/gsd-integration.md
-  11. Write .gsd/SPEC.md
-  12. Write .gsd/STATE.md
-  13. Write .gsd/JOURNAL.md
-  14. Overwrite GSD_PROJECT_RULES.md (root)
-  15. Write GSD-STYLE.md (root)
-  16. Write .prompt-template.md (root)
-  17. Overwrite GEMINI.md (root)
-  18. Mark P1-13 [COMPLETED] in .agents/tasks_status_matrix.md
+  1. Transition to the React + Vite frontend dashboard (P2-01) in the next phase.

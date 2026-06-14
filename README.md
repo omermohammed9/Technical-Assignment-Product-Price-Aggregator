@@ -247,6 +247,20 @@ Click **Authorize** → enter your `API_KEY` value → all endpoints become test
 
 ---
 
+## Postman Collection
+
+A pre-configured Postman collection is available in the root folder:
+
+- [product-price-aggregator.postman_collection.json](file:///c:/Users/omarz/Desktop/product-price-aggregator/product-price-aggregator.postman_collection.json)
+
+To use it:
+1. Import the JSON file into Postman.
+2. In the collection settings, configure the environment variables:
+   - `base_url`: Target URL of the API (defaults to `http://localhost:3000`).
+   - `api_key`: API authentication token (defaults to `supersecureapikey123`).
+
+---
+
 ## SSE Live Dashboard
 
 A zero-dependency HTML page is served at:

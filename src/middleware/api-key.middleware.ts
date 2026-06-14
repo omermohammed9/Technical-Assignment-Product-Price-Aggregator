@@ -8,11 +8,14 @@ import { Request, Response, NextFunction } from 'express';
 @Injectable()
 export class ApiKeyMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
-    // Allow SSE and public static assets without an API key
+    const cleanPath = (req.originalUrl || req.path || '')
+      .split('?')[0]
+      .replace(/\/$/, '');
+
     if (
-      req.path === '/health' ||
-      req.path.startsWith('/public') ||
-      req.path.startsWith('/products/live-changes')
+      cleanPath === '/health' ||
+      cleanPath.startsWith('/public') ||
+      cleanPath.startsWith('/products/live-changes')
     ) {
       return next();
     }

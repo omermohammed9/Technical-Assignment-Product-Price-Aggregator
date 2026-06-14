@@ -64,4 +64,31 @@ describe('Products API (e2e)', () => {
       .set('x-api-key', API_KEY)
       .expect(404);
   });
+
+  it('GET /health — returns database and server health without API key', () => {
+    return request(app.getHttpServer())
+      .get('/health')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toHaveProperty('status', 'healthy');
+        expect(res.body).toHaveProperty('database', 'connected');
+        expect(res.body).toHaveProperty('timestamp');
+      });
+  });
+
+  it('GET /products — rate limit triggers 429 Too Many Requests after exceeding threshold', async () => {
+    let triggered = false;
+    // We try to make up to 110 requests. We expect to hit a 429 status code.
+    for (let i = 0; i < 110; i++) {
+      const res = await request(app.getHttpServer())
+        .get('/products')
+        .set('x-api-key', API_KEY);
+      if (res.status === 429) {
+        triggered = true;
+        break;
+      }
+      expect(res.status).toBe(200);
+    }
+    expect(triggered).toBe(true);
+  });
 });

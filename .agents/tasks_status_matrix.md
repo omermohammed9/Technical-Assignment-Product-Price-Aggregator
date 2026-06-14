@@ -28,7 +28,7 @@
 | P2-04   | GET /health endpoint with DB ping                       | Low      | [COMPLETED] | 2026-06-14     |
 | P2-05   | @nestjs/throttler rate limiting                         | Low      | [COMPLETED] | 2026-06-14     |
 | P2-06   | Structured logging (pino or winston)                    | Low      | [COMPLETED] | 2026-06-14     |
-| P2-07   | Postman collection                                      | Low      | [BACKLOG]   | —              |
+| P2-07   | Postman collection and E2E tests                        | Low      | [COMPLETED] | 2026-06-14     |
  
  ## Model Selection Guide
  
@@ -45,6 +45,6 @@
  
  ## Progress Summary
  - Total Tasks: 20
- - Completed: 18 (90%)
+ - Completed: 19 (95%)
  - In Progress: 0 (0%)
- - Backlog: 2 (10%)
+ - Backlog: 1 (5%)

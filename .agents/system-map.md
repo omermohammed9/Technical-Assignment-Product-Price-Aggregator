@@ -65,6 +65,7 @@
 | .env.example                                     | implemented | docs-agent          | (reference only)               |
 | .github/workflows/ci.yml                         | implemented | architect-agent     | GitHub Actions                 |
 | README.md                                        | implemented | docs-agent          | (all modules)                  |
+| product-price-aggregator.postman_collection.json | implemented | docs-agent          | Postman API collection         |
 | GEMINI.md                                        | implemented | docs-agent          | governance files               |
 | GSD_PROJECT_RULES.md                             | implemented | docs-agent          | governance files               |
 | .agents/rules/AGENTS.md                          | implemented | docs-agent          | (this system)                  |

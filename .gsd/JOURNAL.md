@@ -69,3 +69,19 @@
     - Configured structured JSON logging globally using `nestjs-pino` and `pino` (pretty-printed in development).
     - Designed and wrote the GitHub Actions CI/CD pipeline workflow `.github/workflows/ci.yml`.
     - Added comprehensive unit tests for `HealthController` and mocked `RedisService` in unit tests.
+
+---
+
+## 2026-06-14 — Postman Collection & E2E Tests Implemented
+
+  Task: P2-07 — Postman Collection & E2E Tests
+  Status: COMPLETED
+
+  Changes Made:
+    - Installed `pino-http` production dependency (with `--legacy-peer-deps` to resolve `@nestjs/testing` dependency conflicts) to allow Pino logging to start correctly.
+    - Fixed `PrismaModule` path import from absolute `src/modules/...` to relative `./prisma.service` in `prisma.module.ts` to allow Jest to resolve modules in E2E tests.
+    - Updated `ApiKeyMiddleware` to use `req.originalUrl` (splitting query params and stripping trailing slashes) to ensure `/health` bypass works reliably in all routing and test environments.
+    - Implemented a suite of E2E tests in `test/app.e2e-spec.ts` covering the `GET /health` endpoint (confirming JSON status/database checks) and global rate limiter behavior (verifying `429 Too Many Requests` is thrown after exceeding the request limit).
+    - Created a complete Postman collection `product-price-aggregator.postman_collection.json` in the root folder with all route contracts, parameters, variables (`{{base_url}}`, `{{api_key}}`), and headers.
+    - Updated `README.md` to document the Postman collection variables and import details.
+    - Verified all changes against standard quality gates (`npm run lint` and `npm run test:e2e`).
