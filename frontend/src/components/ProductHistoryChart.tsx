@@ -13,16 +13,7 @@ import {
 import { Line } from 'react-chartjs-2';
 import { TrendingUp, TrendingDown, Clock, ShieldCheck, ShoppingCart } from 'lucide-react';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  ChartTitle,
-  Tooltip,
-  Legend,
-  Filler
-);
+
 
 interface PriceHistoryEntry {
   id: number;
@@ -47,9 +38,22 @@ interface Product {
 interface ProductHistoryChartProps {
   product: Product | null;
   loading: boolean;
+  theme?: 'dark' | 'light';
 }
 
-export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ product, loading }) => {
+export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ product, loading, theme }) => {
+  React.useEffect(() => {
+    ChartJS.register(
+      CategoryScale,
+      LinearScale,
+      PointElement,
+      LineElement,
+      ChartTitle,
+      Tooltip,
+      Legend,
+      Filler
+    );
+  }, []);
   if (loading) {
     return (
       <div className="card" id="history-chart-panel" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '350px', color: 'var(--text-secondary)' }}>
@@ -127,6 +131,13 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
     ],
   };
 
+  const isLight = theme === 'light';
+  const gridColor = isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)';
+  const tickColor = isLight ? '#475569' : '#94a3b8';
+  const tooltipBg = isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(15, 23, 42, 0.95)';
+  const tooltipBorder = isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.08)';
+  const tooltipLabelColor = isLight ? '#0f172a' : '#f8fafc';
+
   const options = {
     responsive: true,
     maintainAspectRatio: false,
@@ -135,11 +146,13 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
         display: false,
       },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        backgroundColor: tooltipBg,
+        titleColor: tooltipLabelColor,
+        bodyColor: tooltipLabelColor,
         titleFont: { family: 'Plus Jakarta Sans', weight: 'bold' as const },
         bodyFont: { family: 'Plus Jakarta Sans' },
         padding: 10,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: tooltipBorder,
         borderWidth: 1,
         callbacks: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -150,20 +163,20 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
     scales: {
       x: {
         grid: {
-          color: 'rgba(255, 255, 255, 0.04)',
+          color: gridColor,
         },
         ticks: {
-          color: '#64748b',
+          color: tickColor,
           font: { family: 'Plus Jakarta Sans', size: 10 },
           maxRotation: 45,
         },
       },
       y: {
         grid: {
-          color: 'rgba(255, 255, 255, 0.04)',
+          color: gridColor,
         },
         ticks: {
-          color: '#64748b',
+          color: tickColor,
           font: { family: 'Plus Jakarta Sans', size: 10 },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           callback: (value: any) => `$${value}`,
@@ -216,7 +229,7 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
 
       {/* Line Chart Visualizer */}
       <div style={{ height: '280px', position: 'relative', width: '100%' }}>
-        <Line data={data} options={options} />
+        <Line key={product.id} data={data} options={options} />
       </div>
 
       {/* Meta Footer */}

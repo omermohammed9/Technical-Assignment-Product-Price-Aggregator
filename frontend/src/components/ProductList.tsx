@@ -134,7 +134,7 @@ export const ProductList: React.FC<ProductListProps> = ({
           <button 
             id="btn-toggle-filters" 
             onClick={() => setFiltersExpanded(!filtersExpanded)} 
-            className={`btn-secondary ${filtersExpanded ? 'btn-primary' : ''}`} 
+            className={filtersExpanded ? 'btn-primary' : 'btn-secondary'} 
             style={{ padding: '0.5rem 0.75rem', height: '36px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
             title="Toggle Filters"
           >
@@ -211,11 +211,37 @@ export const ProductList: React.FC<ProductListProps> = ({
       </div>
 
       {/* Product List Grid */}
-      <div style={{ flex: 1, minHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div style={{ flex: 1, minHeight: '350px', maxHeight: '450px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         {loading && products.length === 0 ? (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            <RefreshCw size={24} style={{ animation: 'spin 1.5s infinite linear', marginRight: '0.5rem' }} /> Loading catalog...
-          </div>
+          Array.from({ length: 3 }).map((_, idx) => (
+            <div
+              key={`skeleton-${idx}`}
+              className="product-card"
+              style={{
+                padding: '1rem',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-sm)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                opacity: 0.6,
+                cursor: 'default'
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '70%' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div className="skeleton-shimmer" style={{ height: '1.1rem', width: '120px', borderRadius: '4px' }} />
+                  <div className="skeleton-shimmer" style={{ height: '1.1rem', width: '60px', borderRadius: '4px' }} />
+                </div>
+                <div className="skeleton-shimmer" style={{ height: '0.9rem', width: '85%', borderRadius: '4px' }} />
+                <div className="skeleton-shimmer" style={{ height: '0.75rem', width: '40%', borderRadius: '4px' }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem', width: '25%' }}>
+                <div className="skeleton-shimmer" style={{ height: '1.5rem', width: '70px', borderRadius: '4px' }} />
+                <div className="skeleton-shimmer" style={{ height: '1.1rem', width: '80px', borderRadius: '50px' }} />
+              </div>
+            </div>
+          ))
         ) : products.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             No products match the selected filters.
@@ -228,13 +254,22 @@ export const ProductList: React.FC<ProductListProps> = ({
                 key={p.id}
                 id={`product-card-${p.id}`}
                 onClick={() => onSelectProduct(p.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectProduct(p.id);
+                  }
+                }}
+                aria-selected={isSelected}
                 style={{
                   padding: '1rem',
-                  border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                  border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-color)',
                   backgroundColor: isSelected ? 'var(--primary-glow)' : 'transparent',
                   borderRadius: 'var(--radius-sm)',
                   cursor: 'pointer',
-                  boxShadow: isSelected ? 'var(--shadow-sm)' : 'none'
+                  boxShadow: isSelected ? '0 0 0 1px var(--primary), var(--shadow-sm)' : 'none'
                 }}
                 className={`product-card ${isSelected ? 'selected' : ''}`}
               >

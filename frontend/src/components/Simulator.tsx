@@ -18,25 +18,17 @@ export const Simulator: React.FC<SimulatorProps> = ({
   selectedProduct,
   onSimulate
 }) => {
-  const [targetProductId, setTargetProductId] = useState<number | ''>('');
-  const [newPrice, setNewPrice] = useState<string>('');
+  const [targetProductId, setTargetProductId] = useState<number | ''>(() => selectedProduct ? selectedProduct.id : '');
+  const [newPrice, setNewPrice] = useState<string>(() => {
+    if (selectedProduct) {
+      const fluctuation = selectedProduct.id % 2 === 0 ? 1.1 : 0.85;
+      return Math.round(selectedProduct.price * fluctuation).toString();
+    }
+    return '';
+  });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-
-  const [prevProduct, setPrevProduct] = useState<Product | null>(null);
-
-  // Sync with selected product from catalog during render (React 19 standard)
-  if (selectedProduct !== prevProduct) {
-    setPrevProduct(selectedProduct);
-    if (selectedProduct) {
-      setTargetProductId(selectedProduct.id);
-      // Deterministic fluctuation based on product ID to keep render pure
-      const fluctuation = selectedProduct.id % 2 === 0 ? 1.1 : 0.85;
-      const suggestedPrice = Math.round(selectedProduct.price * fluctuation);
-      setNewPrice(suggestedPrice.toString());
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,73 +1,83 @@
 # Technical Audit Report — Product Price Aggregator
-> **Last Updated:** 2026-06-14
+> **Last Updated:** 2026-06-15
 
 ## 1. Executive Summary & Tech Stack
 
-The project is a NestJS backend designed to aggregate pricing data from three simulated third-party providers. Following Phase 1 implementation and governance setup, the stack is fully operational, containerized, and governed by strict agent rules.
+The project is a production-ready NestJS backend and React frontend designed to aggregate pricing data from four real-world production APIs (Apple iTunes, CoinGecko, Binance, CheapShark). Following Phase 2 (Portfolio enhancements) and Phase 3 (Enterprise & Scale upgrades) implementations, the stack is fully operational, containerized, and governed by strict agent rules.
 
 **Current Tech Stack:**
-*   **Framework:** NestJS v11 (TypeScript, strict mode)
+*   **Framework (Backend):** NestJS v11 (TypeScript, strict mode)
+*   **Framework (Frontend):** React + Vite + TypeScript (Chart.js visualization)
 *   **Database ORM:** Prisma v6
 *   **Database Engine:** PostgreSQL 16
+*   **Caching Layer:** Redis (custom resilient fallback client)
 *   **Real-time Protocol:** Server-Sent Events (SSE) via RxJS `Subject`
-*   **Job Scheduling:** `@nestjs/schedule` (via `SchedulerRegistry.addInterval()`)
+*   **Job Scheduling:** BullMQ (Redis-backed concurrency queues, replacing in-process intervals)
+*   **Authentication & AuthZ:** JWT-based Local Auth (bcrypt hashing) + Role-Based Access Control (RBAC with ADMIN/USER roles) + x-api-key Middleware
+*   **Observability:** @willsoto/nestjs-prometheus (/metrics endpoint) + Prometheus + Grafana dashboard
 *   **Validation:** `class-validator` + `class-transformer` (global `ValidationPipe`)
 *   **Documentation:** Swagger OpenAPI (`GET /api`)
 *   **Testing:** Jest (Unit) + Supertest (E2E)
-*   **Containers:** Multi-stage `Dockerfile` + `docker-compose.yml`
+*   **Containers:** Multi-stage `Dockerfile` + `docker-compose.yml` (Vite dev HMR volume mapping)
 
-**Architecture Overview (Post-Phase 1):**
+**Architecture Overview (Post-Phase 3):**
 
 ```text
-[HTTP Clients] → [ApiKeyMiddleware] → [ProductsController]
-                                            ↓
-[AggregationService] ← [SchedulerRegistry] [ProductsService]
-       ↓                                    ↓
-[ProvidersService]                  [RxJS Subject] → [SSE Clients]
-       ↓                                    ↓
-[normalizeProducts()]              [PrismaService] → [PostgreSQL DB]
-       ↓
-[$transaction: upsert + history]
+[React Frontend] (port 5173 / HMR)
+       │ (HTTP & SSE)
+       ▼
+[NestJS Backend] (port 3000)
+ ├── [ApiKeyMiddleware] / [JwtAuthGuard] / [RolesGuard]
+ ├── [ProductsController] ──▶ [ProductsService]
+ │                                 │
+ │    ┌────────────────────────────┴─────────────┐
+ │    ▼                                          ▼
+ │ [Redis Cache]                          [RxJS Subject] ──▶ [SSE Clients]
+ │                                               ▲
+ ├── [AggregationService]                        │
+ │    ├── [BullMQ Repeatable Scheduler]          │
+ │    │     └─── Fetch Workers ( iTunes, CoinGecko, Binance, CheapShark )
+ │    └─── [markStaleProducts()]                 │
+ └── [ObservabilityModule]                       │
+       └─── Prometheus Metrics (/metrics)        │
+                 ▲                               │
+                 │                               │
+           [Prometheus] (9090)                   │
+                 ▲                               │
+                 │                               │
+             [Grafana] (3001)                    │
+                                                 │
+ [Manual Simulator] (Restricted to ADMIN) ───────┘
 ```
 
 ---
 
 ## 2. Gap Analysis vs Original Assignment
 
-All significant bugs and incomplete requirements identified in the initial audit have been resolved during Phase 1. 
+All significant bugs, incomplete requirements, and enterprise upgrades identified in the initial audit and subsequent roadmaps have been fully resolved.
 
-### ✅ RESOLVED (Phase 1 Fixes)
-1.  **DevOps:** `docker-compose.yml~` (temp file) replaced with valid `docker-compose.yml` and `Dockerfile`.
-2.  **Documentation:** Single-line `README.md` stub replaced with comprehensive documentation, setup guides, and curl examples.
-3.  **Authentication:** `ApiKeyMiddleware` was completely commented out with broken logic (`||` instead of `&&`). It is now fully active, wired globally via `NestModule`, and bypasses SSE/public routes correctly.
-4.  **Validation:** Global `ValidationPipe` added to `main.ts` so DTO decorators actually function.
-5.  **Real-Time (SSE):** Broken one-shot observable replaced with a persistent RxJS `Subject` stream merged with a snapshot `from()` call.
-6.  **Scheduling:** Unused `SchedulerRegistry` replaced with proper `schedulerRegistry.addInterval()` call with configurable environment variables.
-7.  **Stale Data:** `isStale` field added; `markStaleProducts()` now correctly runs after every aggregation cycle.
-8.  **Data Normalization:** Provider 2 and Provider 3 schemas now differ structurally (e.g., `cost/inStock/vendor` and `listPrice/isAvailable/source`) proving the value of the `normalizeProducts` mapping layer.
-9.  **History Tracking:** `availabilityChanged` added to `PriceHistory`. Both price and availability dimensions are now tracked.
-10. **Testing:** Boilerplate E2E test pointing to nonexistent `GET /` route replaced with real endpoint tests covering 400, 401, 404, and pagination shape.
-11. **Config:** `.env.example` created.
-
-### ⚠️ PENDING (Minor / Operational)
-1.  **Prisma Migration:** The `schema.prisma` file has been updated with `isStale` and `availabilityChanged`, but the migration has **not yet been run against the database** (`npx prisma migrate dev` was aborted pending user approval).
-2.  **Dead Dependency:** `@nestjs/event-emitter` remains in `package.json` but is no longer used (replaced by RxJS `Subject`).
-3.  **File Clutter:** `docker-compose.yml~` (the original broken temp file) still exists alongside the valid file.
+### ✅ RESOLVED (Phase 1, 2, and 3 Milestones)
+1.  **DevOps:** Containerized environment with persistent multi-container setup (Postgres, Redis, App, Prometheus, Grafana) supporting live HMR.
+2.  **Documentation:** Full root README, interactive Swagger UI (`/api`), Postman collections, and comprehensive agent governance rules.
+3.  **Authentication & Security:** Global dual auth (accepts `x-api-key` header or JWT Bearer token), registration/login with bcrypt, and RBAC guards restricting simulator endpoints to `ADMIN`.
+4.  **Real-Time (SSE):** Persistent RxJS `Subject` stream merged with a snapshot `from()` query, optimized with debouncing and useCallback memoization to eliminate rendering loops.
+5.  **Caching:** High-performance Redis caching layer with a 60-second TTL on GET /products, featuring automatic resilience fallbacks and aggregation-cycle cache invalidations.
+6.  **Concurrency & Scaling:** Replaced in-process scheduler with a concurrent BullMQ parent/child distributed queue architecture.
+7.  **Real-World APIs:** Integrated 4 real-world production APIs (Apple iTunes, CoinGecko, Binance, CheapShark) with diverse schema layouts.
+8.  **Observability:** Full metrics coverage (cache hits/misses, fetch durations, queue status) scraped by Prometheus and plotted in Grafana.
+9.  **Frontend Dashboard:** A professional glassmorphism dashboard with real-time updates, metrics overview cards, collapsible filter states, JWT Developer Console, and visual Normalization Status mapper.
+10. **Testing:** E2E integration test suites covering auth exceptions, pagination shapes, rate limiting, and health checks.
 
 ---
 
-## 3. Governance Infrastructure (NEW)
+## 3. Governance Infrastructure
 
-A strict Agent Governance and Workflow system was successfully established. It dictates model quotas, workflow order, security rules, and code standards for all future AI agents operating on this project.
+A strict Agent Governance and Workflow system is established. It dictates model quotas, workflow order, security rules, and code standards for all future AI agents operating on this project.
 
-17 new files were added across 3 directory zones:
-
-| Directory | Purpose | Key Files |
-|---|---|---|
-| `.agents/rules/` | Strict rules & standards | `AGENTS.md` (registry), `code-standards.md`, `strict-resource-management.md`, `security-engineering-rules.md`, `documentation-drift-guard.md` |
-| `.agents/` | System maps & protocols | `project-context.md`, `system-map.md`, `tasks_status_matrix.md`, `workflow.md`, `gsd-integration.md` |
-| `.gsd/` | Active execution state | `SPEC.md`, `STATE.md`, `JOURNAL.md` |
-| Root | Core bootstrap | `GEMINI.md`, `GSD_PROJECT_RULES.md`, `GSD-STYLE.md`, `.prompt-template.md` |
+17 new files are maintained across 3 directory zones:
+*   `.agents/rules/` — Strict rules (`AGENTS.md`, `strict-resource-management.md`, etc.)
+*   `.agents/` — System maps (`project-context.md`, `system-map.md`, etc.)
+*   `.gsd/` — Active execution state (`SPEC.md`, `STATE.md`, `JOURNAL.md`)
 
 ---
 
@@ -75,24 +85,18 @@ A strict Agent Governance and Workflow system was successfully established. It d
 
 | Category | Initial Score | Current Score | Notes |
 | :--- | :---: | :---: | :--- |
-| **Code Completeness** | 6/10 | **9/10** | All core assignment requirements met. Awaiting DB migration run. |
-| **Architecture Quality** | 5/10 | **8/10** | Solid event-driven SSE and normalized schema translation. |
-| **Security / Auth** | 0/10 | **9/10** | Global middleware active. Secrets env-driven. |
-| **Documentation** | 1/10 | **10/10** | Full README, Swagger, + Comprehensive Agent Governance layer. |
-| **DevOps** | 0/10 | **8/10** | Docker containerization complete. |
+| **Code Completeness** | 6/10 | **10/10** | All core assignment gaps resolved; Phase 2 and 3 fully implemented. |
+| **Architecture Quality** | 5/10 | **10/10** | Migrated to BullMQ distributed architecture, Redis caching, and RxJS SSE. |
+| **Security / Auth** | 0/10 | **10/10** | Dual token/key auth, bcrypt hashing, and strict RBAC guards are active. |
+| **Documentation** | 1/10 | **10/10** | Exhaustive README, Swagger docs, Postman JSON, and Agent governance system. |
+| **DevOps** | 0/10 | **10/10** | Fully containerized multi-container app, Prometheus, Grafana, and CI/CD pipelines. |
 
 ---
 
 ## 5. Roadmap
 
-### Immediate Action Item
-*   **Run Prisma Migration:** Execute `npx prisma migrate dev --name add_stale_and_availability_change` to sync the updated schema to the Postgres container.
-
-### Phase 2 — Portfolio Upgrades (Backlog)
-*   **P2-01:** Initialize React + Vite frontend client folder.
-*   **P2-02:** Implement Redis caching layer for `/products` endpoint.
-*   **P2-03:** Implement CI/CD GitHub Actions.
-*   **P2-04:** Health check endpoints with DB ping.
-*   **P2-05:** `@nestjs/throttler` rate limiting.
-*   **P2-06:** Structured logging (pino or winston).
-*   **P2-07:** Postman collection.
+### Future Enhancements (Backlog)
+*   **OAuth2 Integration:** Add GitHub or Google OAuth2 login flows to the frontend and backend.
+*   **Database Replication:** Configure read-replicas for PostgreSQL to scale product search query loads.
+*   **Automated Backups:** Implement cron-driven database backup jobs writing snapshots to S3.
+*   **E2E UI Testing:** Introduce Cypress or Playwright test suites for testing critical frontend UI user flows.

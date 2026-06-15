@@ -104,10 +104,10 @@ PriceHistory
 | Framework | NestJS v11 (TypeScript) |
 | ORM | Prisma v6 |
 | Database | PostgreSQL 16 |
-| Scheduling | `@nestjs/schedule` + `SchedulerRegistry` |
+| Scheduling | BullMQ (Redis-backed concurrent queues) |
 | Real-time | Server-Sent Events (SSE) via RxJS `Subject` |
 | Validation | `class-validator` + `class-transformer` (global `ValidationPipe`) |
-| Auth | Custom API Key middleware (`x-api-key` header) |
+| Auth | Dual Authentication (`x-api-key` OR JWT Bearer tokens with RBAC) |
 | Docs | Swagger / OpenAPI (`@nestjs/swagger`) |
 | Testing | Jest (unit) + Supertest (e2e) |
 | Container | Docker + Docker Compose |

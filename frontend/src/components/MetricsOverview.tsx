@@ -27,7 +27,9 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
     {
       id: "metric-total-products",
       title: 'Total Catalog',
-      value: loading ? '...' : totalProducts,
+      value: loading ? (
+        <span className="skeleton-shimmer" style={{ display: 'inline-block', height: '1.75rem', width: '60px', borderRadius: '4px', verticalAlign: 'middle' }} />
+      ) : totalProducts,
       icon: <Package size={22} color="var(--primary)" />,
       description: 'Indexed items',
       glowClass: 'var(--primary-glow)'
@@ -35,7 +37,9 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
     {
       id: "metric-avg-price",
       title: 'Average Price',
-      value: loading ? '...' : formatPrice(averagePrice),
+      value: loading ? (
+        <span className="skeleton-shimmer" style={{ display: 'inline-block', height: '1.75rem', width: '90px', borderRadius: '4px', verticalAlign: 'middle' }} />
+      ) : formatPrice(averagePrice),
       icon: <BadgeDollarSign size={22} color="var(--accent)" />,
       description: 'Across all items',
       glowClass: 'rgba(6, 182, 212, 0.15)'
@@ -43,7 +47,9 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
     {
       id: "metric-stale-products",
       title: 'Stale Products',
-      value: loading ? '...' : staleCount,
+      value: loading ? (
+        <span className="skeleton-shimmer" style={{ display: 'inline-block', height: '1.75rem', width: '45px', borderRadius: '4px', verticalAlign: 'middle' }} />
+      ) : staleCount,
       icon: <ShieldAlert size={22} color={staleCount > 0 ? "var(--warning)" : "var(--success)"} />,
       description: 'Requires aggregation',
       badge: staleCount > 0 ? (
@@ -60,7 +66,9 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
     {
       id: "metric-providers",
       title: 'Data Sources',
-      value: loading ? '...' : providerCount,
+      value: loading ? (
+        <span className="skeleton-shimmer" style={{ display: 'inline-block', height: '1.75rem', width: '45px', borderRadius: '4px', verticalAlign: 'middle' }} />
+      ) : providerCount,
       icon: <Database size={22} color="var(--success)" />,
       description: 'Active simulators',
       glowClass: 'var(--success-glow)'
@@ -68,7 +76,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
   ];
 
   return (
-    <div className="metrics-row" style={{ marginBottom: '1.5rem' }}>
+    <div className="metrics-row">
       {metrics.map((m) => (
         <div
           key={m.id}

@@ -28,7 +28,7 @@ export const LiveChangeFeed: React.FC<LiveChangeFeedProps> = ({
   };
 
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '500px', overflow: 'hidden' }}>
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '500px', overflow: 'visible' }}>
       {/* Feed title and status */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
         <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -63,6 +63,14 @@ export const LiveChangeFeed: React.FC<LiveChangeFeedProps> = ({
                 key={`${c.id}-${c.timestamp}-${index}`}
                 id={`live-change-card-${c.id}-${index}`}
                 onClick={() => onSelectProduct(c.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectProduct(c.id);
+                  }
+                }}
                 className="card"
                 style={{
                   padding: '0.75rem 1rem',

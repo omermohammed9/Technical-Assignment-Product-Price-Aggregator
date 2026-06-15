@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, startTransition, lazy, Suspense } from 'react';
 import { LayoutDashboard, Moon, Sun, Bell, LogOut, User as UserIcon, Shield } from 'lucide-react';
 import { MetricsOverview } from './components/MetricsOverview';
 import { ProductList } from './components/ProductList';
 import { ProductHistoryChart } from './components/ProductHistoryChart';
 import { LiveChangeFeed } from './components/LiveChangeFeed';
-import { Simulator } from './components/Simulator';
-import { AuthModal } from './components/AuthModal';
-import { DeveloperConsole } from './components/DeveloperConsole';
 import { ProviderStatus } from './components/ProviderStatus';
+
+const Simulator = lazy(() => import('./components/Simulator').then(module => ({ default: module.Simulator })));
+const AuthModal = lazy(() => import('./components/AuthModal').then(module => ({ default: module.AuthModal })));
+const DeveloperConsole = lazy(() => import('./components/DeveloperConsole').then(module => ({ default: module.DeveloperConsole })));
 
 interface Product {
   id: number;
@@ -37,11 +38,17 @@ interface Toast {
   newPrice: number;
 }
 
-const baseUrl = typeof window !== 'undefined' && window.location.origin === 'http://localhost:5173' ? 'http://localhost:3000' : '';
+const baseUrl = '';
 
 const buildUrl = (path: string) => {
-  const base = baseUrl.replace(/\/$/, '');
-  return `${base}${path}`;
+  return path;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const debugLog = (...args: any[]) => {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
 };
 
 export default function App() {
@@ -125,6 +132,7 @@ export default function App() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFilterChange = useCallback((newFilters: any) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   }, []);
@@ -139,8 +147,8 @@ export default function App() {
   }, []);
 
   // Fetch product list
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
+  const fetchProducts = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const queryParams = new URLSearchParams();
       if (filters.name) queryParams.append('name', filters.name);
@@ -166,7 +174,7 @@ export default function App() {
       setTotalPages(result.totalPages);
       
       // Auto-select first product if none is selected
-      if (result.data.length > 0 && selectedProductId === null) {
+      if (result.data.length > 0 && selectedProductIdRef.current === null) {
         setSelectedProductId(result.data[0].id);
       }
     } catch (err) {
@@ -174,11 +182,11 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [apiKey, buildUrl, filters, selectedProductId]);
+  }, [apiKey, filters]);
 
   // Fetch single product details with history
-  const fetchProductDetails = useCallback(async (id: number) => {
-    setDetailsLoading(true);
+  const fetchProductDetails = useCallback(async (id: number, silent = false) => {
+    if (!silent) setDetailsLoading(true);
     try {
       const url = buildUrl(`/products/${id}`);
       const res = await fetch(url, {
@@ -194,7 +202,7 @@ export default function App() {
     } finally {
       setDetailsLoading(false);
     }
-  }, [apiKey, buildUrl]);
+  }, [apiKey]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -229,34 +237,36 @@ export default function App() {
       }
 
       const url = buildUrl('/products/live-changes');
-      console.log('🔗 [DEBUG] Connecting to SSE stream at:', url, 'with apiKey:', apiKey);
+      debugLog('🔗 [DEBUG] Connecting to SSE stream at:', url, 'with apiKey:', apiKey);
       eventSource = new EventSource(url);
-
+ 
       eventSource.onopen = () => {
         setConnected(true);
-        console.log('✅ [DEBUG] Connected to SSE stream.');
+        debugLog('✅ [DEBUG] Connected to SSE stream.');
       };
 
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (Array.isArray(data)) {
-            console.log('📦 [DEBUG] SSE received initial snapshot array of length:', data.length);
+            debugLog('📦 [DEBUG] SSE received initial snapshot array of length:', data.length);
             setChanges(data);
           } else {
-            console.log('🔔 [DEBUG] SSE received live update event:', data);
-            setChanges((prev) => {
-              const updated = [data, ...prev];
-              return updated.slice(0, 20); // cap at 20 items
+            debugLog('🔔 [DEBUG] SSE received live update event:', data);
+            startTransition(() => {
+              setChanges((prev) => {
+                const updated = [data, ...prev];
+                return updated.slice(0, 20); // cap at 20 items
+              });
+              
+              // Add visual notification
+              addToastRef.current(data);
             });
             
-            // Add visual notification
-            addToastRef.current(data);
-
-            // Refresh catalog and detailed view
-            fetchProductsRef.current();
+            // Refresh catalog and detailed view silently
+            fetchProductsRef.current(true);
             if (selectedProductIdRef.current === data.id) {
-              fetchProductDetailsRef.current(data.id);
+              fetchProductDetailsRef.current(data.id, true);
             }
           }
         } catch (err) {
@@ -266,7 +276,7 @@ export default function App() {
 
       eventSource.onerror = (err) => {
         setConnected(false);
-        console.log('❌ [DEBUG] Connection lost or error occurred:', err);
+        debugLog('❌ [DEBUG] Connection lost or error occurred:', err);
         eventSource?.close();
         reconnectTimer = setTimeout(connectSSE, 5000);
       };
@@ -275,8 +285,11 @@ export default function App() {
     connectSSE();
 
     return () => {
-      console.log('🧹 [DEBUG] SSE cleanup called! Closing EventSource...');
+      debugLog('🧹 [DEBUG] SSE cleanup called! Closing EventSource...');
       if (eventSource) {
+        eventSource.onopen = null;
+        eventSource.onmessage = null;
+        eventSource.onerror = null;
         eventSource.close();
       }
       if (reconnectTimer) {
@@ -333,8 +346,8 @@ export default function App() {
           {user ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', padding: '0.4rem 0.8rem', borderRadius: '50px', border: '1px solid var(--border-color)' }}>
               {user.role === 'ADMIN' ? <Shield size={16} color="var(--primary)" /> : <UserIcon size={16} color="var(--text-secondary)" />}
-              <div className="user-badge-text" style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{user.email}</span>
+              <div className="user-badge-text" style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2', minWidth: 0 }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</span>
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{user.role}</span>
               </div>
               <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.2rem', marginLeft: '0.5rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Log Out">
@@ -392,6 +405,7 @@ export default function App() {
             <ProductHistoryChart
               product={selectedProductDetails}
               loading={detailsLoading}
+              theme={theme}
             />
           </div>
         </div>
@@ -399,14 +413,19 @@ export default function App() {
         {/* Right Side: Settings & Controls */}
         <div className="side-panel">
           {user && user.role === 'ADMIN' && (
-            <Simulator
-              products={products.map(p => ({ id: p.id, name: p.name, price: p.price }))}
-              selectedProduct={products.find(p => p.id === selectedProductId) || null}
-              onSimulate={handleSimulate}
-            />
+            <Suspense fallback={null}>
+              <Simulator
+                key={selectedProductId ?? 'none'}
+                products={products.map(p => ({ id: p.id, name: p.name, price: p.price }))}
+                selectedProduct={products.find(p => p.id === selectedProductId) || null}
+                onSimulate={handleSimulate}
+              />
+            </Suspense>
           )}
 
-          <DeveloperConsole apiKey={apiKey} user={user} />
+          <Suspense fallback={null}>
+            <DeveloperConsole apiKey={apiKey} user={user} />
+          </Suspense>
 
           <LiveChangeFeed
             changes={changes}
@@ -419,11 +438,11 @@ export default function App() {
       </main>
 
       {/* Notification Toast Stream */}
-      <div className="toast-container">
+      <div className="toast-container" role="log" aria-live="polite">
         {toasts.map((t) => {
           const up = t.newPrice >= t.oldPrice;
           return (
-            <div key={t.id} className="toast" style={{ borderLeftColor: up ? 'var(--success)' : 'var(--danger)' }}>
+            <div key={t.id} className="toast" role="status" style={{ borderLeftColor: up ? 'var(--success)' : 'var(--danger)' }}>
               <Bell size={18} color="var(--primary)" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>Price Alert</span>
@@ -436,15 +455,17 @@ export default function App() {
         })}
       </div>
 
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        baseUrl={baseUrl}
-        onSuccess={(token) => {
-          setApiKey(token);
-          localStorage.setItem('aggregator_api_key', token);
-        }}
-      />
+      <Suspense fallback={null}>
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          baseUrl={baseUrl}
+          onSuccess={(token) => {
+            setApiKey(token);
+            localStorage.setItem('aggregator_api_key', token);
+          }}
+        />
+      </Suspense>
     </div>
   );
 }

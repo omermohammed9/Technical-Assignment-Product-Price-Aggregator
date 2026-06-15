@@ -37,6 +37,11 @@
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 20px;
+
+  /* Z-Index Layering */
+  --z-header: 100;
+  --z-toasts: 1050;
+  --z-modal: 1100;
 }
 
 /* Light Theme overrides */
@@ -60,11 +65,21 @@
   --shadow-lg: 0 16px 40px rgba(148, 163, 184, 0.25);
 }
 
+/* Standard CSS Normalization & Resets */
+html, body {
+  height: 100%;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
 body {
@@ -74,6 +89,7 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -100,7 +116,7 @@ h1, h2, h3, h4, h5, h6 {
   backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: var(--z-header);
 }
 
 .logo-section {
@@ -133,7 +149,7 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   min-width: 0;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.2s ease;
 }
 
 .card:hover {
@@ -205,6 +221,7 @@ button {
   font-size: 0.75rem;
   font-weight: 600;
   gap: 0.35rem;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .badge-success {
@@ -249,7 +266,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  z-index: 1000;
+  z-index: var(--z-toasts);
 }
 
 .toast {
@@ -279,7 +296,6 @@ button {
   gap: 1.5rem;
   padding: 1.5rem 2rem;
   flex: 1;
-  overflow: hidden;
 }
 
 .catalog-grid {
@@ -306,7 +322,6 @@ button {
   flex-direction: column;
   gap: 1.5rem;
   min-width: 0;
-  overflow: hidden;
 }
 
 .side-panel {
@@ -314,7 +329,9 @@ button {
   flex-direction: column;
   gap: 1.5rem;
   min-width: 0;
-  overflow: hidden;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 /* Metrics row */
@@ -462,6 +479,17 @@ button {
 
 .slide-up {
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--bg-input) 25%, var(--border-color) 50%, var(--bg-input) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
 }
 
 /* Interactive elements */

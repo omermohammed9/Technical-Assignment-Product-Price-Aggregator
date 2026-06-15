@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Lock, Mail, ShieldAlert } from 'lucide-react';
 
 interface AuthModalProps {
@@ -15,6 +15,59 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, 
   const [role, setRole] = useState<'USER' | 'ADMIN'>('USER');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Save previous active element to restore on close
+    const previousActiveElement = document.activeElement as HTMLElement;
+
+    // Focus the modal content initially
+    setTimeout(() => {
+      modalRef.current?.focus();
+    }, 50);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        if (!modalRef.current) return;
+        const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+        const focusableElements = Array.from(
+          modalRef.current.querySelectorAll(focusableSelectors)
+        ) as HTMLElement[];
+
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousActiveElement?.focus();
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -68,10 +121,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, 
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       backgroundColor: 'rgba(0,0,0,0.7)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 1000,
+      zIndex: 'var(--z-modal)' as string,
       backdropFilter: 'blur(4px)'
     }}>
-      <div className="card slide-up" style={{ width: '100%', maxWidth: '400px', padding: '2rem', position: 'relative', margin: '1rem' }}>
+      <div 
+        ref={modalRef}
+        tabIndex={-1}
+        aria-modal="true"
+        role="dialog"
+        className="card slide-up" 
+        style={{ width: '100%', maxWidth: '400px', padding: '2rem', position: 'relative', margin: '1rem', outline: 'none' }}
+      >
         <button 
           onClick={onClose}
           style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
@@ -137,7 +197,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, 
               <select 
                 value={role} 
                 onChange={(e) => setRole(e.target.value as 'USER' | 'ADMIN')}
-                style={{ width: '100%', padding: '0.65rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', backgroundColor: 'var(--surface)', color: 'var(--text-primary)' }}
+                style={{ width: '100%', padding: '0.65rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-input)', color: 'var(--text-primary)' }}
               >
                 <option value="USER">Normal User</option>
                 <option value="ADMIN">Administrator</option>

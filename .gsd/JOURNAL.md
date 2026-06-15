@@ -193,3 +193,31 @@
     - Added the `watch: { usePolling: true }` parameter to the Vite configuration in `vite.config.ts` to ensure hot module reloading (HMR) operates correctly across Windows-to-Linux bind mounts within Docker.
     - Verified the frontend compilation compiles successfully, and validated using the browser subagent that the SSE connection remains stable with zero infinite loops.
 
+---
+
+## 2026-06-15 — Frontend Troubleshooting Report Resolutions
+
+  Task: P3-12 — Frontend Troubleshooting Report Resolutions
+  Status: COMPLETED
+
+  Changes Made:
+    - Resolved 33 issues across CSS transitions, overflows, FOUC theme flash, SSE updates batching, z-indexes, layout shifts, code-splitting, dynamic chart themes, and accessibility compliance.
+    - Verified frontend builds cleanly with dynamic code splitting chunks and 0 ESLint warnings.
+    - Verified all 14 integration test cases pass successfully.
+
+---
+
+## 2026-06-15 — Documentation Alignment & Sync
+
+  Task: Documentation Sprint
+  Status: COMPLETED
+
+  Changes Made:
+    - Updated `audit_report.md` to reflect Phase 2 & 3 upgrades (Redis, BullMQ, Auth/RBAC, 4 Real APIs, Observability).
+    - Synced root mirrors (`PROJECT_CONTEXT.md`, `SYSTEM_MAP.md`, `TASKS_STATUS_MATRIX.md`) with `.agents/` equivalents.
+    - Replaced Vite boilerplate `frontend/README.md` with detailed frontend documentation.
+    - Updated root `README.md` tech stack configurations to reflect BullMQ and dual JWT authentication.
+    - Switched `.gsd/STATE.md` to "Maintenance/VERIFY" state.
+    - Completed and marked all stage checklists (`.gsd/stage-1` through `stage-4`) as done.
+    - Verified whole project with unit tests (`npm run test`), compilation checks (`npm run build`), and linting (`npm run lint`).
+

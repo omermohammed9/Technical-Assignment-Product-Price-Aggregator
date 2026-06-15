@@ -1,24 +1,105 @@
-# 📖 Project Context (PROJECT_CONTEXT.md)
+# Project Context
 
-## 📌 Overview
-The **Product Price Aggregator** is a NestJS backend API that collects, normalizes, and serves pricing and availability data for digital products from multiple simulated third-party providers. It supports real-time change streaming via SSE, full price history tracking, and filtering/pagination across all endpoints.
+## 1. Mission Statement
+Build a production-quality NestJS API that aggregates pricing and availability data
+for digital products (crypto, software, video games) from multiple live, real-world
+third-party APIs (iTunes, Binance, CoinGecko, CheapShark). The system collects data concurrently, normalizes
+heterogeneous schemas, tracks price and availability history, and exposes a
+real-time SSE stream. Target audience: backend engineering portfolio reviewers.
 
-## 🛠️ Architecture & Tech Stack
-*   **Framework**: NestJS v11 (TypeScript, strict mode)
-*   **ORM**: Prisma v6
-*   **Database**: PostgreSQL 16 (Docker-ready via `docker-compose.yml`)
-*   **Scheduling**: `@nestjs/schedule` with `SchedulerRegistry`-managed interval
-*   **Real-time**: Server-Sent Events (SSE) via RxJS `Subject` in `ProductsService`
-*   **Auth**: Custom `ApiKeyMiddleware` — `x-api-key` header required on all routes except SSE + `/public`
-*   **Validation**: Global `ValidationPipe` with `class-validator` + `class-transformer`
-*   **API Docs**: Swagger/OpenAPI at `GET /api`
-*   **Testing**: Jest (unit) + Supertest (e2e)
-*   **Container**: Dockerfile (multi-stage) + docker-compose.yml
+## 2. Engineering Constraints
+  - No production secrets in source. All config from process.env.
+  - ValidationPipe with whitelist: true must remain global.
+  - ApiKeyMiddleware must stay active on all routes except /products/live-changes and /public/*.
+  - SSE must use RxJS Subject merged with snapshot from(). Never revert to one-shot.
+  - SchedulerRegistry.addInterval() must always register the aggregation interval.
+  - markStaleProducts() must run after every aggregation cycle.
+  - Provider schemas must remain structurally different (proves normalization value).
+  - All list endpoints return: { page, limit, total, totalPages, data[] }.
+  - All numeric path params use ParseIntPipe.
+  - No bare any types. No console.log in production code.
 
-## 🗄️ Database Models
-*   **Product** — id, name, description, price, currency, availability, provider, isStale, lastUpdated, lastFetched
-*   **PriceHistory** — id, productId (FK), price (old), availabilityChanged, timestamp
+## 3. Architecture
+  Stateful: PostgreSQL via Prisma (product catalog + price history)
+  Stateless: NestJS HTTP layer (controllers, DTOs, middleware)
+  Scheduled: AggregationService runs on configurable interval (DATA_FETCH_INTERVAL)
+  Event-driven: RxJS Subject bridges price changes to SSE clients
 
-## 🎯 Current Status
-*   **Phase 1 (MVP Gaps)**: ✅ Complete — all original assignment requirements implemented
-*   **Phase 2 (Portfolio Upgrades)**: ✅ Complete — React dashboard, Redis cache, CI/CD, rate limiting, health endpoints
+  Module dependency chain:
+    AppModule → PrismaModule (shared)
+    AppModule → ProvidersModule
+    AppModule → AggregationModule → ProvidersModule + PrismaModule
+    AppModule → ProductsModule → PrismaModule
+
+## 4. Database Schemas
+
+### Product
+  id            Int      @id @default(autoincrement())
+  name          String   @db.VarChar(255)
+  description   String
+  price         Float
+  currency      String
+  availability  Boolean
+  provider      String
+  isStale       Boolean  @default(false)
+  lastUpdated   DateTime @updatedAt
+  lastFetched   DateTime @default(now())
+  history       PriceHistory[]
+  Indexes: name, provider, price, isStale, lastFetched
+
+### PriceHistory
+  id                  Int      @id @default(autoincrement())
+  productId           Int      (FK → Product)
+  price               Float    (OLD price at change time)
+  availabilityChanged Boolean  @default(false)
+  timestamp           DateTime @default(now())
+  Indexes: productId, timestamp
+
+## 5. Security Threat Model
+  Threat: Unauthorized API access → Mitigation: x-api-key middleware
+  Threat: Invalid query injection → Mitigation: class-validator + whitelist DTOs
+  Threat: DB injection → Mitigation: Prisma parameterized queries (no raw SQL)
+  Threat: Sensitive config exposure → Mitigation: .env git-ignored, .env.example committed
+
+## 6. Phase Status Tracker
+
+| Phase | Description                    | Status      |
+|-------|--------------------------------|-------------|
+| P1    | Core assignment gaps (MVP)     | COMPLETED   |
+| P2    | Portfolio upgrades             | COMPLETED   |
+| P3    | Enterprise & Scale Upgrades    | COMPLETED   |
+
+### P3 Completed Milestones
+  ✅ JWT-based local authentication with bcrypt password hashing
+  ✅ Role-Based Access Control (ADMIN, USER) with JwtAuthGuard and RolesGuard
+  ✅ ApiKeyMiddleware updated to accept x-api-key OR JWT Bearer tokens
+  ✅ Simulator endpoint restricted to ADMIN role
+  ✅ BullMQ distributed queue replacing local setInterval scheduler
+  ✅ Prometheus metrics via @willsoto/nestjs-prometheus (/metrics endpoint)
+  ✅ Cache hit/miss, aggregation cycle, and provider fetch metrics
+  ✅ Prometheus + Grafana containers in docker-compose.yml
+  ✅ User model and Role enum added to Prisma schema
+  ✅ Front-end AuthModal integration
+  ✅ Rewrote providers to use 4 real production APIs (iTunes, Binance, CoinGecko, CheapShark)
+  ✅ Refactored Docker environment to support real-time Frontend/Backend Live Reloading (HMR)
+
+### P2 Completed Milestones
+  ✅ React + Vite frontend dashboard (Chart.js integration, live SSE stream)
+  ✅ Redis caching layer for GET /products (resilient custom client)
+  ✅ Global rate limiting via @nestjs/throttler (100 req/min)
+  ✅ Structured logging via Pino and nestjs-pino (JSON in prod, pretty in dev)
+  ✅ Database-integrated health check endpoint (/health) without auth
+  ✅ GitHub Actions CI/CD Pipeline workflow (.github/workflows/ci.yml)
+
+### P1 Completed Milestones
+  ✅ docker-compose.yml + Dockerfile
+  ✅ ValidationPipe globally registered
+  ✅ ApiKeyMiddleware fixed and active
+  ✅ SSE via RxJS Subject (persistent hot stream)
+  ✅ SchedulerRegistry interval registration
+  ✅ markStaleProducts() after each cycle
+  ✅ Provider 2 & 3 structurally different schemas
+  ✅ availabilityChanged tracked in PriceHistory
+  ✅ isStale field on Product
+  ✅ E2E tests covering real endpoints
+  ✅ Full README.md

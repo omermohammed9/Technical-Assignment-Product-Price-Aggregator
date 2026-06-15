@@ -1,73 +1,60 @@
-# React + TypeScript + Vite
+# Product Price Aggregator Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A professional, interactive, glassmorphic Single-Page Application (SPA) built using **React, TypeScript, and Vite** that visualizes aggregated pricing metrics, lists product catalogs, plots price historical data, streams real-time updates via Server-Sent Events (SSE), and simulates price changes.
 
-Currently, two official plugins are available:
+## Tech Stack
+- **Framework:** React 19 (TypeScript, strict mode)
+- **Build Tool:** Vite (with Dev HMR and proxy routing support)
+- **Charts:** Chart.js + `react-chartjs-2` (custom themes)
+- **Icons:** SVG-based vector layouts
+- **Styling:** Custom Vanilla CSS (Dark & Light theme toggles, fluid grids, scroll optimization, modal slide-in animations)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features & Modules
 
-## React Compiler
+### 📊 1. Metrics Overview
+- Visualizes real-time summary statistics cards:
+  - **Total Products** in database
+  - **Average Price** of all catalog items
+  - **Stale Products** (not fetched in last 2 hours)
+  - **Active Providers** count
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 🔍 2. Product Catalog
+- Powerful search input matching product titles.
+- Multi-dimensional filters (by provider source, availability status, and min/max price sliders).
+- Collapsible responsive filter drawer optimized for mobile viewports.
+- Interactive detailed drawer inspecting individual product's properties.
 
-## Expanding the ESLint configuration
+### 📈 3. Price History Chart
+- Custom curved line charts rendered via Chart.js with responsive gradients.
+- Automatically adjusts colors, grid lines, tooltips, and labels based on Light/Dark active themes.
+- Clean memoized component keys to prevent unnecessary rendering flashes.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### ⚡ 4. Live Change Feed
+- Connects directly to the backend's `/products/live-changes` Server-Sent Events (SSE) stream.
+- Feeds real-time alerts into a list with slide-in notifications and toast banners.
+- Includes reconnection timeouts, React 19 callback safety hooks, and useCallback memoizations to prevent memory leaks and infinite rendering cascades.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### ⚙️ 5. Simulator Panel
+- Direct admin controls allowing users to inject mock price changes on any product.
+- State-synced selectors enforcing standard number limits and error handling.
+- Requires ADMIN user role.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 🔐 6. Authentication UI & JWT Developer Console
+- Fully interactive `AuthModal` providing Sign Up and Login screens.
+- Persists user sessions securely and automatically injects JWT Bearer tokens into API headers.
+- **Developer Console:** Built-in JWT inspector tool parsing decoded claims (Subject ID, Role, Expiry duration) directly in-browser.
+- **Provider Status:** Visual Normalization Mapper layout mapping raw API inputs (Binance, CoinGecko, iTunes, CheapShark) to unified catalog rows.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Local Development Setup
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+To run or build the frontend independently:
+```bash
+# 1. Install dependencies
+npm install
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+# 2. Run local dev server (proxies HTTP requests to port 3000)
+npm run dev
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# 3. Compile and build production assets directly to NestJS static public/ folder
+npm run build
 ```
