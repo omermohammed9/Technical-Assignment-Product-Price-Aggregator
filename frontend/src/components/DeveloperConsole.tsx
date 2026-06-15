@@ -1,3 +1,9 @@
+/**
+ * @file DeveloperConsole.tsx
+ * @description Component displaying active auth parameters, JWT payloads, claims,
+ * and key expiration statuses for developer analysis.
+ */
+
 import React, { useState } from 'react';
 import { Key, Copy, Check, Cpu, ShieldAlert, Award } from 'lucide-react';
 
@@ -9,18 +15,21 @@ interface DeveloperConsoleProps {
 export const DeveloperConsole: React.FC<DeveloperConsoleProps> = ({ apiKey, user }) => {
   const [copied, setCopied] = useState(false);
 
+  /** Copies active credential keys onto the clipboard */
   const handleCopy = () => {
     navigator.clipboard.writeText(apiKey || 'supersecureapikey123');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  /** Formats JWT epoch expiration values to human-readable locale formats */
   const getExpirationDate = (exp?: number) => {
     if (!exp) return 'Never';
     return new Date(exp * 1000).toLocaleString();
   };
 
   const isJwt = apiKey && apiKey.startsWith('eyJ');
+
 
   return (
     <div className="card" id="developer-console-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

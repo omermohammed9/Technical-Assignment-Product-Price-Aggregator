@@ -1,7 +1,14 @@
+/**
+ * @file ProviderStatus.tsx
+ * @description Component displaying active provider mappings, mapping fields,
+ * and current system connectivity statuses.
+ */
+
 import React from 'react';
 import { Database, Link2, CheckCircle, Info } from 'lucide-react';
 
 export const ProviderStatus: React.FC = () => {
+
   const providers = [
     {
       name: 'Apple App Store',

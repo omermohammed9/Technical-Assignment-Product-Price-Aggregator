@@ -221,3 +221,30 @@
     - Completed and marked all stage checklists (`.gsd/stage-1` through `stage-4`) as done.
     - Verified whole project with unit tests (`npm run test`), compilation checks (`npm run build`), and linting (`npm run lint`).
 
+---
+
+## 2026-06-15 — Codebase Comments & Explanations Sprint
+
+  Task: P3-13 — Commenting & Explanations Upgrade
+  Status: COMPLETED
+
+  Changes Made:
+    - Added JSDoc/TSDoc block comments and file-level header descriptions to 30+ NestJS backend and React frontend source files.
+    - Documented API key and JWT auth flows, database connection lifecycles, custom Redis cache invalidation, Prom metrics counters/histograms, BullMQ concurrent processing, and RxJS-based SSE streams.
+    - Resolved TypeScript lint errors on frontend debugLog type definitions (migrated from `any[]` to type-safe `unknown[]`).
+    - Verified backend and frontend compile and lint cleanly with zero warnings/errors.
+
+---
+
+## 2026-06-15 — File Inventory Documentation & System Map Sync
+
+  Task: Stage 3 Maintenance — System Map Descriptions
+  Status: COMPLETED
+
+  Changes Made:
+    - Updated `SYSTEM_MAP.md` and `.agents/system-map.md` with a comprehensive, descriptive table explaining what each file in the codebase does (including Core, DB, Cache, Auth, Health, Aggregator, Products, Frontend, and Testing modules).
+    - Standardized description fields to detail file responsibilities, key dependencies, and system roles.
+    - Verified that all documentation files are correctly formatted and fully synchronized between the root directory and the `.agents/` repository directory.
+
+
+

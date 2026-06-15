@@ -1,18 +1,26 @@
-import { Injectable } from '@nestjs/common';
+/**
+ * @file providers.service.ts
+ * @description Integrates with four real-world APIs (Apple App Store, CoinGecko, Binance, and CheapShark)
+ * to pull product details, software listings, crypto ticker costs, and pc game deals.
+ * Exposes different data layouts for testing schema normalization capabilities in the AggregationService.
+ * @module ProvidersService
+ */
 
+import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 
-/**
- * Simulates three structurally different external provider APIs.
- *
- * Provider 1: canonical field names  { price, availability }
- * Provider 2: alternative field names { cost, inStock }       → normalized by AggregationService
- * Provider 3: alternative field names { listPrice, isAvailable } → normalized by AggregationService
- */
 @Injectable()
 export class ProvidersService {
-  private readonly PRICE_VARIATION = 0.1; // ±10%
+  private readonly logger = new Logger(ProvidersService.name);
+  private readonly PRICE_VARIATION = 0.1; // ±10% variation (retained for signature consistency)
 
+  /**
+   * Generates a stable numeric hash from a string key to simulate unique integer database IDs.
+   *
+   * @private
+   * @param {string} str - The source string key (e.g. coin ID or symbol)
+   * @returns {number} A positive 32-bit integer hash value
+   */
   private hashCode(str: string): number {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -21,9 +29,13 @@ export class ProvidersService {
     return Math.abs(hash);
   }
 
-  // ── Network simulation ─────────────────────────────────────────────────────
+  // ── Network API Integrations ────────────────────────────────────────────────
+
   /**
-   * Provider 1 — Real API Integration (Apple iTunes / App Store)
+   * Provider 1 — Integrates with Apple iTunes Search API (Software Entities).
+   * Schema mapping matches canonical fields directly: { id, name, description, price, availability, provider }
+   *
+   * @returns {Promise<any[]>} Extracted products collection
    */
   async fetchProvider1(): Promise<any[]> {
     try {
@@ -42,15 +54,19 @@ export class ProvidersService {
         provider: 'Apple App Store',
       }));
     } catch (error) {
-      console.error('Failed to fetch from iTunes API:', error);
+      this.logger.error(
+        `Failed to fetch from iTunes API: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       return [];
     }
   }
 
   /**
-   * Provider 2 — different field names: { cost, inStock, vendor }
-   * AggregationService normalizes these into the canonical format.
-   * Real API: CoinGecko (Crypto Markets)
+   * Provider 2 — Integrates with CoinGecko Market Markets API.
+   * Uses alternate field names: { cost, productName, summary, inStock, updatedAt, vendor }
+   *
+   * @returns {Promise<any[]>} Extracted variant products collection
    */
   async fetchProvider2(): Promise<any[]> {
     try {
@@ -68,15 +84,20 @@ export class ProvidersService {
         vendor: 'CoinGecko',
       }));
     } catch (error) {
-      console.error('Failed to fetch from CoinGecko:', error);
+      this.logger.error(
+        `Failed to fetch from CoinGecko: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       return [];
     }
   }
 
   /**
-   * Provider 3 — different field names: { listPrice, isAvailable, source }
-   * AggregationService normalizes these into the canonical format.
-   * Real API: Binance (Crypto Tickers)
+   * Provider 3 — Integrates with Binance Ticker API.
+   * Filters for top USDT trading pairs.
+   * Uses alternate field names: { listPrice, title, details, isAvailable, timestamp, source }
+   *
+   * @returns {Promise<any[]>} Extracted variant products collection
    */
   async fetchProvider3(): Promise<any[]> {
     try {
@@ -98,15 +119,19 @@ export class ProvidersService {
         source: 'Binance',
       }));
     } catch (error) {
-      console.error('Failed to fetch from Binance:', error);
+      this.logger.error(
+        `Failed to fetch from Binance: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       return [];
     }
   }
 
   /**
-   * Provider 4 — different field names: { gameName, steamRating, salePrice, isAvailable, source }
-   * AggregationService normalizes these into the canonical format.
-   * Real API: CheapShark (PC Game Deals)
+   * Provider 4 — Integrates with CheapShark API (PC Game Deals).
+   * Uses alternate field names: { gameName, steamRating, salePrice, isAvailable, source }
+   *
+   * @returns {Promise<any[]>} Extracted variant products collection
    */
   async fetchProvider4(): Promise<any[]> {
     try {
@@ -124,7 +149,10 @@ export class ProvidersService {
         source: 'CheapShark',
       }));
     } catch (error) {
-      console.error('Failed to fetch from CheapShark:', error);
+      this.logger.error(
+        `Failed to fetch from CheapShark: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
       return [];
     }
   }

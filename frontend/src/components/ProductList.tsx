@@ -1,3 +1,9 @@
+/**
+ * @file ProductList.tsx
+ * @description Component displaying the paginated list of catalog products.
+ * Handles queries search debouncing, column filters, and pagination.
+ */
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { RefreshCw, ChevronLeft, ChevronRight, Store, Calendar, SlidersHorizontal } from 'lucide-react';
 
@@ -56,7 +62,9 @@ export const ProductList: React.FC<ProductListProps> = ({
   const [localLimit, setLocalLimit] = useState(limit);
   const [filtersExpanded, setFiltersExpanded] = useState(() => window.innerWidth > 768);
 
+  /** Triggers the search change callback with parsed values */
   const triggerFilterChange = useCallback((overrides: { page?: number; limit?: number } = {}) => {
+
     let avail: boolean | undefined = undefined;
     if (availability === 'true') avail = true;
     if (availability === 'false') avail = false;

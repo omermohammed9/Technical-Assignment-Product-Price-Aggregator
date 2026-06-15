@@ -1,3 +1,12 @@
+/**
+ * @file aggregation.service.ts
+ * @description Background data aggregator service acting as a BullMQ queue worker.
+ * Concurrently queries multiple external APIs, normalizes custom vendor data formats into a canonical database schema,
+ * writes price history changes transactionally, handles network request retries with exponential backoff,
+ * flags stale products, and invalidates list caches.
+ * @module AggregationService
+ */
+
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Queue, Job } from 'bullmq';
@@ -15,6 +24,15 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
   private readonly logger = new Logger(AggregationService.name);
   private readonly fetchInterval: number;
 
+  /**
+   * Creates an instance of AggregationService.
+   *
+   * @param {Queue} aggregationQueue - Injected BullMQ queue instance
+   * @param {PrismaService} prisma - Injected database client service
+   * @param {ProvidersService} providersService - Injected third-party provider scraper service
+   * @param {RedisService} redis - Injected Redis caching client
+   * @param {MetricsService} metrics - Injected Prometheus metrics service
+   */
   constructor(
     @InjectQueue('aggregation') private readonly aggregationQueue: Queue,
     private readonly prisma: PrismaService,
@@ -26,18 +44,22 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
     this.fetchInterval = Number(process.env.DATA_FETCH_INTERVAL) || 300_000;
   }
 
+  /**
+   * Initializes module lifecycle.
+   * Schedules a repeatable BullMQ job based on DATA_FETCH_INTERVAL and triggers an immediate aggregation cycle.
+   */
   async onModuleInit() {
     this.logger.log(
       `Aggregation scheduled every ${this.fetchInterval / 1000}s via BullMQ`,
     );
 
-    // Remove any existing repeatable jobs and re-register
+    // Remove any existing repeatable jobs to avoid scheduling duplicates on application hot-reload
     const existingRepeatables = await this.aggregationQueue.getRepeatableJobs();
     for (const job of existingRepeatables) {
       await this.aggregationQueue.removeRepeatableByKey(job.key);
     }
 
-    // Add a repeatable job
+    // Add a repeatable job executing periodically
     await this.aggregationQueue.add(
       'aggregation-cycle',
       {},
@@ -48,7 +70,7 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
       },
     );
 
-    // Run an initial fetch immediately on startup
+    // Run an initial fetch immediately on startup to seed the database catalog
     await this.aggregationQueue.add(
       'aggregation-cycle',
       {},
@@ -61,6 +83,13 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
 
   // ── BullMQ Worker Process ─────────────────────────────────────────────────
 
+  /**
+   * Primary entry point invoked by BullMQ worker thread when a new job arrives in the queue.
+   * Coordinates data aggregation, stale product scanning, and cache invalidation.
+   *
+   * @param {Job} job - Inbound BullMQ job parameters
+   * @returns {Promise<void>}
+   */
   async process(job: Job): Promise<void> {
     this.logger.log(`Processing BullMQ job: ${job.name} (id: ${job.id})`);
     const cycleEnd = this.metrics.aggregationCycleDuration.startTimer();
@@ -68,13 +97,14 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
     try {
       await this.aggregateData();
       await this.markStaleProducts();
+      // Invalidate all product lists keys in Redis cache to ensure fresh updates are returned
       await this.redis.deletePattern('products:list:*');
       this.metrics.aggregationCycleStatus.inc({ status: 'success' });
       this.logger.log('Aggregation cycle complete.');
     } catch (error) {
       this.metrics.aggregationCycleStatus.inc({ status: 'failure' });
       this.logger.error(`Aggregation failed: ${(error as Error).message}`);
-      throw error; // Let BullMQ handle retries
+      throw error; // Let BullMQ handle retries based on queue configuration
     } finally {
       cycleEnd();
     }
@@ -82,6 +112,12 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
 
   // ── Public entry point (used by tests) ────────────────────────────────────
 
+  /**
+   * Concurrently pulls raw product catalogs from multiple external APIs, normalizes, and upserts them.
+   * Tracks fetch times and successes/failures via Prometheus gauge metrics.
+   *
+   * @returns {Promise<void>}
+   */
   async aggregateData() {
     const fetchProvider = async (
       name: string,
@@ -108,6 +144,7 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
       }
     };
 
+    // Concurrently fetch from Apple Store, CoinGecko, Binance, and CheapShark
     const [r1, r2, r3, r4] = await Promise.allSettled([
       fetchProvider('provider-1', () => this.providersService.fetchProvider1()),
       fetchProvider('provider-2', () => this.providersService.fetchProvider2()),
@@ -115,6 +152,7 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
       fetchProvider('provider-4', () => this.providersService.fetchProvider4()),
     ]);
 
+    // Merge successfully completed results
     const raw = [
       ...(r1.status === 'fulfilled' ? (r1.value ?? []) : []),
       ...(r2.status === 'fulfilled' ? (r2.value ?? []) : []),
@@ -139,6 +177,16 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
 
   // ── Retry logic ────────────────────────────────────────────────────────────
 
+  /**
+   * Retries an asynchronous operation with exponential backoff delay.
+   *
+   * @private
+   * @template T
+   * @param {() => Promise<T>} fetchFn - The API request promise function
+   * @param {number} [retries=3] - Maximum retry attempts permitted
+   * @param {number} [baseDelay=1000] - Initial backoff delay in milliseconds
+   * @returns {Promise<T | []>} The resolved results, or an empty array if all attempts fail
+   */
   private async fetchWithRetries<T>(
     fetchFn: () => Promise<T>,
     retries = 3,
@@ -173,6 +221,13 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
   //   Provider 2 (variant):    productName, summary, cost, inStock, updatedAt, vendor
   //   Provider 3 (variant):    title, details, listPrice, isAvailable, timestamp, source
 
+  /**
+   * Normalizes heterogeneous vendor product shapes into standard canonical database formats.
+   *
+   * @private
+   * @param {any[]} products - Collection of raw provider product objects
+   * @returns {any[]} Catalog of normalized product entities ready for database write
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private normalizeProducts(products: any[]): any[] {
     return products
@@ -201,8 +256,18 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
 
   // ── Upsert with price/availability history ─────────────────────────────────
 
+  /**
+   * Performs high-integrity database writes for products.
+   * Compares incoming parameters with existing values to generate price and availability history logs
+   * and commits both operations in a single atomic transaction.
+   *
+   * @private
+   * @param {any[]} data - Normalized product objects
+   * @returns {Promise<void>}
+   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async upsertProducts(data: any[]) {
+    // Query database for current records to determine changes
     const existing = await this.prisma.product.findMany({
       where: { id: { in: data.map((p) => p.id) } },
       select: { id: true, price: true, availability: true },
@@ -222,15 +287,17 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
       const priceChanged = prev.price !== newProd.price;
       const availChanged = prev.availability !== newProd.availability;
 
+      // Log to history if price or availability status changed since the last fetch cycle
       if (priceChanged || availChanged) {
         historyInserts.push({
           productId: prev.id,
-          price: prev.price, // store OLD price
+          price: prev.price, // store OLD price for chronological trend analysis
           availabilityChanged: availChanged,
         });
       }
     }
 
+    // Execute history recording and product records upserting within a single transaction boundary
     await this.prisma.$transaction(async (tx) => {
       if (historyInserts.length > 0) {
         await tx.priceHistory.createMany({ data: historyInserts });
@@ -260,6 +327,12 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
   //
   // Products whose lastFetched is older than STALE_THRESHOLD_MS are flagged.
 
+  /**
+   * Scans database to detect products not updated by recent data aggregation cycles.
+   * Flags these records as stale to prevent displaying outdated cache inventories.
+   *
+   * @returns {Promise<void>}
+   */
   async markStaleProducts() {
     const threshold = new Date(Date.now() - STALE_THRESHOLD_MS);
     const result = await this.prisma.product.updateMany({

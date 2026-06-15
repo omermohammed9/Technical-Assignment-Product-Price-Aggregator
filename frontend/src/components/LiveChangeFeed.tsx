@@ -1,3 +1,9 @@
+/**
+ * @file LiveChangeFeed.tsx
+ * @description Renders a real-time list of product price/availability changes streamed via SSE.
+ * Allows clicking on entries to select products and focus on their respective details.
+ */
+
 import React from 'react';
 import { Activity, TrendingUp, TrendingDown, ArrowRight, Zap } from 'lucide-react';
 
@@ -20,12 +26,14 @@ export const LiveChangeFeed: React.FC<LiveChangeFeedProps> = ({
   connected,
   onSelectProduct
 }) => {
+  /** Formats a numeric price into a standard USD currency format */
   const formatPrice = (val: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(val);
   };
+
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '500px', overflow: 'visible' }}>

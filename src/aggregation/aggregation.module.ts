@@ -1,3 +1,10 @@
+/**
+ * @file aggregation.module.ts
+ * @description Module orchestrating the background pricing and availability aggregator.
+ * Registers the 'aggregation' BullMQ message queue and binds the AggregationService processor.
+ * @module AggregationModule
+ */
+
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ProvidersModule } from '../providers/providers.module';
@@ -10,6 +17,7 @@ import { RedisModule } from '../modules/redis/redis.module';
     ProvidersModule,
     PrismaModule,
     RedisModule,
+    // Registers the 'aggregation' BullMQ queue for job scheduling and tracking
     BullModule.registerQueue({
       name: 'aggregation',
     }),

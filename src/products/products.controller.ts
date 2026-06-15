@@ -1,3 +1,11 @@
+/**
+ * @file products.controller.ts
+ * @description Exposes HTTP endpoints for querying aggregated product data,
+ * historical price and availability changes, streaming live updates via Server-Sent Events (SSE),
+ * and manual price simulations for testing purposes.
+ * @module ProductsController
+ */
+
 import {
   Controller,
   Get,
@@ -28,12 +36,19 @@ import { Role } from '../modules/auth/enums/role.enum';
 @ApiSecurity('api-key')
 @Controller('products')
 export class ProductsController {
+  /**
+   * Creates an instance of ProductsController.
+   * @param {ProductsService} productsService - Injected products service managing data catalog
+   */
   constructor(private readonly productsService: ProductsService) {}
 
   /**
-   * SSE: streams live price-change events to connected clients.
-   * On connect, immediately sends the latest 10 changes as a snapshot,
-   * then continues pushing new events as they occur.
+   * Server-Sent Events (SSE) route streaming live price changes.
+   * On connection, instantly pushes the latest 10 changes as an array snapshot,
+   * then merges and streams new changes in real-time as they are broadcast by the service.
+   * Exempt from API key and JWT authentication requirements to permit frontend SSE streams.
+   *
+   * @returns {Observable<MessageEvent>} Continuous stream of MessageEvents carrying JSON stringified objects
    */
   @Sse('live-changes')
   @ApiOperation({
@@ -45,16 +60,21 @@ export class ProductsController {
       map((changes) => ({ data: JSON.stringify(changes) }) as MessageEvent),
     );
 
-    // Ongoing live events pushed via Subject
+    // Ongoing live events pushed via RxJS Subject
     const live$ = this.productsService.productChanges$.pipe(
       map((event) => ({ data: JSON.stringify(event) }) as MessageEvent),
     );
 
+    // Merge snapshot and live streams together into a single continuous stream
     return merge(snapshot$, live$);
   }
 
   /**
-   * GET /products — filterable, paginated product list.
+   * Queries and filters the aggregated product catalog.
+   * Leverages caching inside the service layer.
+   *
+   * @param {GetProductsDto} filters - Querystring filters (name, minPrice, maxPrice, availability, provider, page, limit)
+   * @returns {Promise<{ page: number, limit: number, total: number, totalPages: number, data: any[] }>} Paginated list of products matching criteria
    */
   @Get()
   @ApiOperation({
@@ -82,7 +102,10 @@ export class ProductsController {
   }
 
   /**
-   * GET /products/changes — price and availability changes within a timeframe.
+   * Retrieves paginated historic pricing or availability changes within a specific date range.
+   *
+   * @param {GetProductChangesDto} filters - Timeframe boundaries and pagination page/limit
+   * @returns {Promise<{ page: number, limit: number, total: number, totalPages: number, data: any[] }>} Paginated historic changes
    */
   @Get('changes')
   @ApiOperation({
@@ -117,7 +140,10 @@ export class ProductsController {
   }
 
   /**
-   * GET /products/:id — single product with full price history.
+   * Retrieves a single product card by its unique ID, including its complete historical changes log.
+   *
+   * @param {number} id - The ID of the target product
+   * @returns {Promise<any>} Product details with full nested priceHistory relation array
    */
   @Get(':id')
   @ApiOperation({ summary: 'Get a product by ID including its price history' })
@@ -126,8 +152,12 @@ export class ProductsController {
   }
 
   /**
-   * GET /products/simulate-change/:id/:price — trigger a manual price update for testing SSE.
-   * Restricted to ADMIN role only.
+   * Simulates a manual price update for testing real-time client alerts.
+   * Restricted to users authenticated via JWT holding the ADMIN security role.
+   *
+   * @param {number} id - Target product ID
+   * @param {number} price - Simulated new price
+   * @returns {Promise<any>} The updated product record
    */
   @Get('simulate-change/:id/:price')
   @UseGuards(JwtAuthGuard, RolesGuard)

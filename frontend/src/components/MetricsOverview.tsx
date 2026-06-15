@@ -1,3 +1,9 @@
+/**
+ * @file MetricsOverview.tsx
+ * @description Component displaying key summary analytics (Total catalog items, average cost, stale counts, and data source counts).
+ * Supports skeleton loading states during API fetches.
+ */
+
 import React from 'react';
 import { Package, ShieldAlert, BadgeDollarSign, Database } from 'lucide-react';
 
@@ -16,12 +22,14 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
   providerCount,
   loading
 }) => {
+  /** Formats a numeric value to USD currency strings */
   const formatPrice = (val: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(val);
   };
+
 
   const metrics = [
     {

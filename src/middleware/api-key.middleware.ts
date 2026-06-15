@@ -6,16 +6,38 @@ import {
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 
+/**
+ * @file api-key.middleware.ts
+ * @description Authentication middleware implementing a hybrid validation model.
+ * Validates incoming HTTP requests by checking for either a valid `x-api-key` header
+ * or a valid JWT Bearer token in the `Authorization` header. Exempts public routes
+ * (health, SSE feed, Swagger UI, static assets, login/register endpoints).
+ * @module ApiKeyMiddleware
+ */
+
 @Injectable()
 export class ApiKeyMiddleware implements NestMiddleware {
+  /**
+   * Creates an instance of ApiKeyMiddleware.
+   * @param {JwtService} jwtService - Service used to verify Bearer JWT signatures
+   */
   constructor(private readonly jwtService: JwtService) {}
 
+  /**
+   * Evaluates request credentials. Exempts paths or validates API Key / JWT.
+   *
+   * @param {Request} req - Express Request object
+   * @param {Response} res - Express Response object
+   * @param {NextFunction} next - Callback function to pass execution control to the next handler
+   * @throws {UnauthorizedException} If credentials are missing, malformed, or expired
+   */
   use(req: Request, res: Response, next: NextFunction) {
+    // Clean trailing slashes and query parameters for robust route matching
     const cleanPath = (req.originalUrl || req.path || '')
       .split('?')[0]
       .replace(/\/$/, '');
 
-    // Exempt paths: health, public assets, SSE stream, auth, metrics, swagger
+    // Exempt paths: health ping, static assets, SSE real-time stream, authentication controllers, prometheus metrics, swagger ui
     if (
       cleanPath === '/health' ||
       cleanPath.startsWith('/public') ||
@@ -27,13 +49,13 @@ export class ApiKeyMiddleware implements NestMiddleware {
       return next();
     }
 
-    // Check API key first
+    // Step 1: Precedence Check - API Key validation (header: x-api-key)
     const apiKey = req.header('x-api-key');
     if (apiKey && apiKey === process.env.API_KEY) {
       return next();
     }
 
-    // Check JWT Bearer token as fallback
+    // Step 2: Fallback Check - JWT Bearer Token validation (header: Authorization)
     const authHeader = req.header('authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
@@ -41,7 +63,7 @@ export class ApiKeyMiddleware implements NestMiddleware {
         const payload = this.jwtService.verify(token, {
           secret: process.env.JWT_SECRET || 'supersecretjwtkey999',
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // Attach decoded payload containing userId and roles to request object for downstream controllers/guards
         (req as any).user = payload;
         return next();
       } catch {
@@ -49,6 +71,7 @@ export class ApiKeyMiddleware implements NestMiddleware {
       }
     }
 
+    // If both authorization attempts fail, deny access
     throw new UnauthorizedException('Invalid or missing API key or JWT token');
   }
 }

@@ -1,3 +1,10 @@
+/**
+ * @file App.tsx
+ * @description Root component of the React frontend. Coordinates states, authentication,
+ * theme management, active EventSource SSE stream handles, notification toasts,
+ * data queries, and orchestrates the child dashboard workspace components.
+ */
+
 import { useState, useEffect, useRef, useCallback, startTransition, lazy, Suspense } from 'react';
 import { LayoutDashboard, Moon, Sun, Bell, LogOut, User as UserIcon, Shield } from 'lucide-react';
 import { MetricsOverview } from './components/MetricsOverview';
@@ -44,20 +51,22 @@ const buildUrl = (path: string) => {
   return path;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const debugLog = (...args: any[]) => {
+/** Log utility that runs only in development node environments */
+const debugLog = (...args: unknown[]) => {
   if (import.meta.env.DEV) {
     console.log(...args);
   }
 };
 
 export default function App() {
+  /** Authentication & API Key states (extracted from localStorage or defaulted) */
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('aggregator_api_key') || '');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
-  // JWT parsing
+  /** Decoded user context claims (parsed from JWT) */
   const [user, setUser] = useState<{ email: string; role: string } | null>(null);
 
+  /** Parse JWT token automatically if authorization key changes */
   useEffect(() => {
     if (apiKey && apiKey.startsWith('eyJ')) {
       try {
@@ -72,37 +81,39 @@ export default function App() {
     }
   }, [apiKey]);
 
+  /** Removes active keys/session details from local contexts */
   const handleLogout = () => {
     setApiKey('');
     localStorage.removeItem('aggregator_api_key');
     setUser(null);
   };
 
-  // Theme
+  /** Color theme selection */
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('aggregator_theme') as 'dark' | 'light') || 'dark';
   });
 
-  // State Management
+  /** Product catalog list states */
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  /** Selected product detail view states */
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedProductDetails, setSelectedProductDetails] = useState<any | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
-  // Live SSE stream state
+  /** Real-time EventSource price logs */
   const [changes, setChanges] = useState<ChangeEvent[]>([]);
   const [connected, setConnected] = useState(false);
 
-  // Toasts
+  /** Visual pop-up notification toasts */
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Filter settings
+  /** Filtering query states */
   const [filters, setFilters] = useState<{
     name?: string;
     provider?: string;
@@ -116,13 +127,13 @@ export default function App() {
     limit: 5
   });
 
-  // Ref to always have the latest selected product ID in the SSE closure
+  /** Maintain active product ID reference within the EventSource stream callback closure */
   const selectedProductIdRef = useRef<number | null>(null);
   useEffect(() => {
     selectedProductIdRef.current = selectedProductId;
   }, [selectedProductId]);
 
-  // Handle theme application
+  /** Synchronize CSS attributes with current color theme selections */
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('aggregator_theme', theme);
@@ -132,12 +143,13 @@ export default function App() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
+  /** Update query filter rules */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleFilterChange = useCallback((newFilters: any) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   }, []);
 
-  // Toast adder
+  /** Spawns a temporary visual toast notification alert and auto-discards it after 4.5 seconds */
   const addToast = useCallback((event: ChangeEvent) => {
     const id = `${event.id}-${Date.now()}`;
     setToasts((prev) => [...prev, { id, name: event.name, oldPrice: event.oldPrice, newPrice: event.newPrice }]);
@@ -146,7 +158,7 @@ export default function App() {
     }, 4500);
   }, []);
 
-  // Fetch product list
+  /** Fetches paginated products list from the backend API using active credentials and query parameters */
   const fetchProducts = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
@@ -173,7 +185,7 @@ export default function App() {
       setPage(result.page);
       setTotalPages(result.totalPages);
       
-      // Auto-select first product if none is selected
+      /** Auto-select first catalog row on initial mount to populate details charts */
       if (result.data.length > 0 && selectedProductIdRef.current === null) {
         setSelectedProductId(result.data[0].id);
       }
@@ -184,7 +196,7 @@ export default function App() {
     }
   }, [apiKey, filters]);
 
-  // Fetch single product details with history
+  /** Fetches details and historical logs for a single product Card */
   const fetchProductDetails = useCallback(async (id: number, silent = false) => {
     if (!silent) setDetailsLoading(true);
     try {
@@ -204,11 +216,13 @@ export default function App() {
     }
   }, [apiKey]);
 
+  /** Trigger catalog reload when search filters or API keys are updated */
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchProducts();
   }, [filters, apiKey, fetchProducts]);
 
+  /** Trigger details reload when selection changes */
   useEffect(() => {
     if (selectedProductId !== null) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -216,6 +230,7 @@ export default function App() {
     }
   }, [selectedProductId, apiKey, fetchProductDetails]);
 
+  /** Cache function references to avoid resetting SSE listener context on component updates */
   const fetchProductsRef = useRef(fetchProducts);
   const fetchProductDetailsRef = useRef(fetchProductDetails);
   const addToastRef = useRef(addToast);
@@ -226,7 +241,7 @@ export default function App() {
     addToastRef.current = addToast;
   });
 
-  // SSE Stream handler
+  /** Establishes a persistent Server-Sent Events (SSE) connection to stream price updates */
   useEffect(() => {
     let eventSource: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -248,22 +263,24 @@ export default function App() {
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          /** If the received payload is an array, it represents the initial snapshot connection block */
           if (Array.isArray(data)) {
             debugLog('📦 [DEBUG] SSE received initial snapshot array of length:', data.length);
             setChanges(data);
           } else {
+            /** Single event indicates a live product pricing shift */
             debugLog('🔔 [DEBUG] SSE received live update event:', data);
             startTransition(() => {
               setChanges((prev) => {
                 const updated = [data, ...prev];
-                return updated.slice(0, 20); // cap at 20 items
+                return updated.slice(0, 20); /** cap storage size at 20 items */
               });
               
-              // Add visual notification
+              /** Trigger visual notification toast pop-up */
               addToastRef.current(data);
             });
             
-            // Refresh catalog and detailed view silently
+            /** Silently refresh product tables and detail metrics if the changed item is currently viewed */
             fetchProductsRef.current(true);
             if (selectedProductIdRef.current === data.id) {
               fetchProductDetailsRef.current(data.id, true);
@@ -278,6 +295,7 @@ export default function App() {
         setConnected(false);
         debugLog('❌ [DEBUG] Connection lost or error occurred:', err);
         eventSource?.close();
+        /** Reconnect after 5 seconds if connection fails or disconnects */
         reconnectTimer = setTimeout(connectSSE, 5000);
       };
     };
@@ -298,7 +316,7 @@ export default function App() {
     };
   }, [apiKey]);
 
-  // Simulator triggering handler
+  /** Sends a manual price update simulation request to the backend API */
   const handleSimulate = async (productId: number, price: number) => {
     try {
       const url = buildUrl(`/products/simulate-change/${productId}/${price}`);
@@ -313,7 +331,7 @@ export default function App() {
       const res = await fetch(url, { headers });
       if (!res.ok) return false;
       
-      // SSE will handle refreshing components, but trigger quick updates in case
+      /** Force instant local refresh (though SSE events will trigger updates too) */
       fetchProducts();
       if (selectedProductId === productId) {
         fetchProductDetails(productId);
@@ -325,7 +343,7 @@ export default function App() {
     }
   };
 
-  // Stats calculation
+  /** Stats calculation */
   const totalProductsCount = total;
   const avgPrice = products.length > 0 
     ? products.reduce((acc, curr) => acc + curr.price, 0) / products.length 

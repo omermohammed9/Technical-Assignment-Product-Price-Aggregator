@@ -1,3 +1,9 @@
+/**
+ * @file ProductHistoryChart.tsx
+ * @description Integrates with ChartJS to render a visual pricing trend line chart
+ * based on the selected product's historic changes log.
+ */
+
 import React from 'react';
 import {
   Chart as ChartJS,
@@ -41,7 +47,13 @@ interface ProductHistoryChartProps {
   theme?: 'dark' | 'light';
 }
 
+/**
+ * @component ProductHistoryChart
+ * @description Renders a responsive Line chart illustrating product price evolution over time.
+ * Handles loading states and no-product-selected empty states.
+ */
 export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ product, loading, theme }) => {
+  // Registers necessary plugins for ChartJS line charting on mount
   React.useEffect(() => {
     ChartJS.register(
       CategoryScale,

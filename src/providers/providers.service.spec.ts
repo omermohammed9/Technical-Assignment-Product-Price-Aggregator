@@ -1,3 +1,9 @@
+/**
+ * @file providers.service.spec.ts
+ * @description Unit tests for ProvidersService.
+ * Validates successful mock responses, failure handles, and return shapes.
+ */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProvidersService } from './providers.service';
 
@@ -17,6 +23,7 @@ describe('ProvidersService', () => {
   });
 
   it('should fetch data from provider 1', async () => {
+    // Spy on fetchProvider1 and mock the return array
     jest.spyOn(service, 'fetchProvider1').mockResolvedValue([
       {
         id: 1,
@@ -37,6 +44,7 @@ describe('ProvidersService', () => {
   });
 
   it('should fetch data from provider 2', async () => {
+    // Spy on fetchProvider2 and mock the return array
     jest.spyOn(service, 'fetchProvider2').mockResolvedValue([
       {
         id: 2,
@@ -57,6 +65,7 @@ describe('ProvidersService', () => {
   });
 
   it('should handle provider 1 failure gracefully', async () => {
+    // Force network/parsing exception
     jest
       .spyOn(service, 'fetchProvider1')
       .mockRejectedValue(new Error('Provider 1 failed'));
@@ -65,6 +74,7 @@ describe('ProvidersService', () => {
   });
 
   it('should handle provider 2 failure gracefully', async () => {
+    // Force network/parsing exception
     jest
       .spyOn(service, 'fetchProvider2')
       .mockRejectedValue(new Error('Provider 2 failed'));

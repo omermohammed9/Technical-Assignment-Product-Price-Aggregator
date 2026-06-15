@@ -1,3 +1,11 @@
+/**
+ * @file products.service.ts
+ * @description Service containing the business logic for the digital products catalog.
+ * Manages queries (with Redis short-TTL cache wraps), history change listings,
+ * and handles price update simulations while pushing change alerts onto the SSE stream.
+ * @module ProductsService
+ */
+
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import { PrismaService } from '../modules/prisma/prisma.service';
@@ -20,10 +28,17 @@ export class ProductsService {
 
   /**
    * Hot Observable that SSE clients subscribe to.
-   * AggregationService pushes events here; the controller streams them to clients.
+   * AggregationService and manual simulations push events here.
    */
   readonly productChanges$ = new Subject<ProductChangeEvent>();
 
+  /**
+   * Creates an instance of ProductsService.
+   *
+   * @param {PrismaService} prisma - Injected database client service
+   * @param {RedisService} redis - Injected Redis caching client
+   * @param {MetricsService} metrics - Injected Prometheus metrics service
+   */
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
@@ -32,9 +47,17 @@ export class ProductsService {
 
   // ── GET /products ──────────────────────────────────────────────────────────
 
+  /**
+   * Queries products from the database using optional filters and pagination.
+   * Implements a Redis read-through cache model with a short (60s) TTL.
+   *
+   * @param {GetProductsDto} filters - Criteria to search by (name, minPrice, maxPrice, availability, provider, page, limit)
+   * @returns {Promise<{ page: number, limit: number, total: number, totalPages: number, data: any[] }>} Paginated products collection
+   */
   async getAllProducts(filters: GetProductsDto) {
     this.logger.log('getAllProducts', filters);
 
+    // Compute key signature based on query parameters JSON
     const cacheKey = `products:list:${JSON.stringify(filters)}`;
     const cachedData = await this.redis.get(cacheKey);
     if (cachedData) {
@@ -52,6 +75,7 @@ export class ProductsService {
     const { page = 1, limit = 10, ...q } = filters;
     const skip = (page - 1) * limit;
 
+    // Build Prisma filtering conditions dynamically
     const where: any = {
       ...(q.name && { name: { contains: q.name, mode: 'insensitive' } }),
       ...(q.minPrice !== undefined && { price: { gte: Number(q.minPrice) } }),
@@ -65,6 +89,7 @@ export class ProductsService {
       }),
     };
 
+    // Parallelize count query and record retrieval to optimize database response times
     const [total, data] = await Promise.all([
       this.prisma.product.count({ where }),
       this.prisma.product.findMany({
@@ -83,7 +108,7 @@ export class ProductsService {
       data,
     };
 
-    // Store in cache for 60 seconds (short TTL)
+    // Store in cache for 60 seconds (short TTL) to offload database reads during burst requests
     await this.redis.set(cacheKey, JSON.stringify(result), 60);
 
     return result;
@@ -91,6 +116,13 @@ export class ProductsService {
 
   // ── GET /products/:id ──────────────────────────────────────────────────────
 
+  /**
+   * Fetches a single product details by its unique identifier, including nested change histories.
+   *
+   * @param {number} id - Product ID
+   * @returns {Promise<any>} The product matching the ID
+   * @throws {NotFoundException} If no product matches the ID
+   */
   async getProductById(id: number) {
     const product = await this.prisma.product.findUnique({
       where: { id },
@@ -101,9 +133,13 @@ export class ProductsService {
   }
 
   // ── GET /products/changes ──────────────────────────────────────────────────
-  //
-  // Returns price AND availability changes within the requested timeframe.
 
+  /**
+   * Fetches product changes historical logs filtered by start and end timestamps.
+   *
+   * @param {GetProductChangesDto} filters - Time boundary parameters and pagination info
+   * @returns {Promise<{ page: number, limit: number, total: number, totalPages: number, data: any[] }>} Paginated list of changes
+   */
   async getProductChanges(filters: GetProductChangesDto) {
     this.logger.log('getProductChanges', filters);
 
@@ -143,14 +179,21 @@ export class ProductsService {
   }
 
   // ── SSE: GET /products/live-changes ───────────────────────────────────────
-  //
-  // Returns the Subject as an Observable so the controller can pipe it to SSE.
-  // External callers (e.g. AggregationService) push events via emitChange().
 
+  /**
+   * Emits a new price change event to the hot RxJS Subject stream to broadcast to connected SSE clients.
+   *
+   * @param {ProductChangeEvent} event - Event details containing old and new price rates
+   */
   emitChange(event: ProductChangeEvent) {
     this.productChanges$.next(event);
   }
 
+  /**
+   * Retrieves the 10 most recent price history changes to send as a snapshop payload when a client connects.
+   *
+   * @returns {Promise<ProductChangeEvent[]>} List of recent change event objects
+   */
   async getLatestChanges(): Promise<ProductChangeEvent[]> {
     const rows = await this.prisma.priceHistory.findMany({
       take: 10,
@@ -168,6 +211,15 @@ export class ProductsService {
 
   // ── Price update (used by simulate-change route) ───────────────────────────
 
+  /**
+   * Manually updates a product price and inserts a history event within a transaction block.
+   * Broadcasts the update to active SSE clients and purges Redis cache pages.
+   *
+   * @param {number} productId - Target product ID
+   * @param {number} newPrice - Target price value to write
+   * @returns {Promise<any>} The updated product record
+   * @throws {NotFoundException} If the product does not exist
+   */
   async updateProductPrice(productId: number, newPrice: number) {
     const existing = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -201,6 +253,7 @@ export class ProductsService {
       return updatedProduct;
     });
 
+    // Invalidate list caches to ensure client queries receive the updated price immediately
     await this.redis.deletePattern('products:list:*');
     return updated;
   }

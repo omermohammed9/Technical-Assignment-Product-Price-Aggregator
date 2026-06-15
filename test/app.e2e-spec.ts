@@ -1,3 +1,10 @@
+/**
+ * @file app.e2e-spec.ts
+ * @description End-to-End (E2E) integration test spec.
+ * Spins up the full AppModule context using Supertest to validate routing,
+ * validation decorators, rate limiting, and database health metrics.
+ */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
@@ -13,6 +20,7 @@ describe('Products API (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    // Replicate global ValidationPipe registered in main.ts
     app.useGlobalPipes(
       new ValidationPipe({ transform: true, whitelist: true }),
     );
@@ -26,7 +34,7 @@ describe('Products API (e2e)', () => {
   it('GET /products — returns paginated list', () => {
     return request(app.getHttpServer())
       .get('/products')
-      .set('x-api-key', API_KEY)
+      .set('x-api-key', API_KEY) // Attach valid API key header
       .expect(200)
       .expect((res) => {
         expect(res.body).toHaveProperty('data');
@@ -42,7 +50,7 @@ describe('Products API (e2e)', () => {
 
   it('GET /products?minPrice=abc — rejects invalid query param', () => {
     return request(app.getHttpServer())
-      .get('/products?minPrice=abc')
+      .get('/products?minPrice=abc') // minPrice expects a number
       .set('x-api-key', API_KEY)
       .expect(400);
   });
@@ -67,7 +75,7 @@ describe('Products API (e2e)', () => {
 
   it('GET /health — returns database and server health without API key', () => {
     return request(app.getHttpServer())
-      .get('/health')
+      .get('/health') // Whitelisted route
       .expect(200)
       .expect((res) => {
         expect(res.body).toHaveProperty('status', 'healthy');
@@ -78,7 +86,7 @@ describe('Products API (e2e)', () => {
 
   it('GET /products — rate limit triggers 429 Too Many Requests after exceeding threshold', async () => {
     let triggered = false;
-    // We try to make up to 110 requests. We expect to hit a 429 status code.
+    // Request burst beyond the limit of 100 requests per minute to trigger throttler
     for (let i = 0; i < 110; i++) {
       const res = await request(app.getHttpServer())
         .get('/products')

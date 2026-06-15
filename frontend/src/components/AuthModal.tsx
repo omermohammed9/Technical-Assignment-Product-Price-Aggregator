@@ -9,6 +9,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, onSuccess }) => {
+  // Modal toggle state (Login vs Register views)
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +19,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, 
 
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Focus Trapping useEffect Hook: traps focus inside the modal for accessibility (WCAG compliance)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -47,12 +49,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, 
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
 
+        // If Shift + Tab is pressed, check if we're on the first element and loop to the last
         if (e.shiftKey) {
           if (document.activeElement === firstElement) {
             lastElement.focus();
             e.preventDefault();
           }
         } else {
+          // If Tab is pressed, check if we're on the last element and loop to the first
           if (document.activeElement === lastElement) {
             firstElement.focus();
             e.preventDefault();
@@ -71,6 +75,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, 
 
   if (!isOpen) return null;
 
+  /**
+   * Handles modal form submission. Sends registering or login payloads to the NestJS backend auth paths
+   * and invokes onSuccess callback with returned access tokens.
+   * 
+   * @param {React.FormEvent} e - Form event context
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -94,7 +104,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, 
         throw new Error(data.message || 'Authentication failed');
       }
 
-      // If it's a register request, it doesn't return a token, so we immediately log them in
+      // If it's a register request, it doesn't return a token, so we immediately log them in automatically
       if (!isLogin) {
         const loginRes = await fetch(`${baseUrl || ''}/auth/login`, {
           method: 'POST',
@@ -115,6 +125,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, baseUrl, 
       setLoading(false);
     }
   };
+
 
   return (
     <div className="fade-in" style={{

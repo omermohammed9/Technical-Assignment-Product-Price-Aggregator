@@ -1,3 +1,9 @@
+/**
+ * @file Simulator.tsx
+ * @description Component allowing admin users to trigger manual pricing variations
+ * for testing and demonstrating live SSE streams.
+ */
+
 import React, { useState } from 'react';
 import { Play, Sparkles, Check, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -18,14 +24,17 @@ export const Simulator: React.FC<SimulatorProps> = ({
   selectedProduct,
   onSimulate
 }) => {
+  // Target product and new simulated price state variables
   const [targetProductId, setTargetProductId] = useState<number | ''>(() => selectedProduct ? selectedProduct.id : '');
   const [newPrice, setNewPrice] = useState<string>(() => {
     if (selectedProduct) {
+      // Fluctuate price slightly based on product ID parity for testing
       const fluctuation = selectedProduct.id % 2 === 0 ? 1.1 : 0.85;
       return Math.round(selectedProduct.price * fluctuation).toString();
     }
     return '';
   });
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');

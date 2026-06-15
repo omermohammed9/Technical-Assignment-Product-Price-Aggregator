@@ -1,3 +1,9 @@
+/**
+ * @file providers.controller.spec.ts
+ * @description Unit tests for ProvidersController.
+ * Verifies controller instantiation and mock data retrieval endpoint mapping.
+ */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProvidersController } from './providers.controller';
 import { ProvidersService } from './providers.service';
@@ -5,6 +11,7 @@ import { ProvidersService } from './providers.service';
 describe('ProvidersController', () => {
   let controller: ProvidersController;
 
+  // Mock implementation of ProvidersService dataset methods
   const mockProvidersService = {
     fetchProvider1: jest.fn().mockResolvedValue([
       {

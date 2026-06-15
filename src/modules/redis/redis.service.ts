@@ -1,17 +1,30 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
 
+/**
+ * @file redis.service.ts
+ * @description Custom Redis cache service wrap around ioredis.
+ * Implements fault-tolerant logic where operations return fallback default values
+ * instead of throwing exceptions if Redis is temporarily unreachable.
+ * Supports pattern-based scan invalidation.
+ * @module RedisService
+ */
+
 @Injectable()
 export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private readonly redis: Redis | null = null;
   private isConnected = false;
 
+  /**
+   * Initializes the Redis Client.
+   * Parses the host connection string and sets up listeners for network events to maintain connection state.
+   */
   constructor() {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     try {
       this.redis = new Redis(redisUrl, {
-        maxRetriesPerRequest: 1,
+        maxRetriesPerRequest: 1, // Fail fast to avoid hanging on down connection
         reconnectOnError: () => true,
       });
 
@@ -27,11 +40,16 @@ export class RedisService implements OnModuleDestroy {
     } catch (err) {
       this.logger.error('Failed to initialize Redis client', err);
       this.redis = null;
+      this.isConnected = false;
     }
   }
 
   /**
-   * Retrieves a value from Redis cache.
+   * Retrieves a cached value from Redis by key.
+   * Tolerates Redis failure by returning null instead of throwing.
+   *
+   * @param {string} key - Cache key
+   * @returns {Promise<string | null>} The parsed cached string value or null if miss/unreachable
    */
   async get(key: string): Promise<string | null> {
     if (!this.redis || !this.isConnected) {
@@ -46,7 +64,13 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
-   * Sets a value in Redis cache with an optional TTL (in seconds).
+   * Caches a value in Redis with an optional TTL.
+   * Tolerates Redis failure gracefully.
+   *
+   * @param {string} key - Cache key
+   * @param {string} value - String value to store
+   * @param {number} [ttlSeconds] - Time-to-Live expiration window in seconds
+   * @returns {Promise<void>}
    */
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
     if (!this.redis || !this.isConnected) {
@@ -64,7 +88,10 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
-   * Deletes a specific key.
+   * Deletes a key from Redis.
+   *
+   * @param {string} key - Target cache key to invalidate
+   * @returns {Promise<void>}
    */
   async del(key: string): Promise<void> {
     if (!this.redis || !this.isConnected) {
@@ -78,7 +105,11 @@ export class RedisService implements OnModuleDestroy {
   }
 
   /**
-   * Deletes keys matching a specific pattern safely using SCAN.
+   * Deletes keys matching a wildcard pattern (e.g. "products:list:*") safely using SCAN.
+   * Avoids blocking the single-threaded Redis process that standard KEYS command causes.
+   *
+   * @param {string} pattern - Wildcard pattern string to match keys
+   * @returns {Promise<void>}
    */
   async deletePattern(pattern: string): Promise<void> {
     if (!this.redis || !this.isConnected) {
@@ -87,6 +118,7 @@ export class RedisService implements OnModuleDestroy {
     try {
       let cursor = '0';
       do {
+        // Retrieve keys in batches of 100 to minimize latency impact on Redis
         const [nextCursor, keys] = await this.redis.scan(
           cursor,
           'MATCH',
@@ -108,6 +140,10 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  /**
+   * Closes the active Redis client connection during NestJS module destruction.
+   * @returns {Promise<void>}
+   */
   async onModuleDestroy() {
     if (this.redis) {
       this.logger.log('Disconnecting from Redis...');
