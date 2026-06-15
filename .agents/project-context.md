@@ -2,8 +2,8 @@
 
 ## 1. Mission Statement
 Build a production-quality NestJS API that aggregates pricing and availability data
-for digital products (e-books, software licenses, digital courses) from multiple
-simulated third-party providers. The system collects data concurrently, normalizes
+for digital products (crypto, software, video games) from multiple live, real-world
+third-party APIs (iTunes, Binance, CoinGecko, CheapShark). The system collects data concurrently, normalizes
 heterogeneous schemas, tracks price and availability history, and exposes a
 real-time SSE stream. Target audience: backend engineering portfolio reviewers.
 
@@ -79,6 +79,9 @@ real-time SSE stream. Target audience: backend engineering portfolio reviewers.
   ✅ Cache hit/miss, aggregation cycle, and provider fetch metrics
   ✅ Prometheus + Grafana containers in docker-compose.yml
   ✅ User model and Role enum added to Prisma schema
+  ✅ Front-end AuthModal integration
+  ✅ Rewrote providers to use 4 real production APIs (iTunes, Binance, CoinGecko, CheapShark)
+  ✅ Refactored Docker environment to support real-time Frontend/Backend Live Reloading (HMR)
 
 ### P2 Completed Milestones
   ✅ React + Vite frontend dashboard (Chart.js integration, live SSE stream)

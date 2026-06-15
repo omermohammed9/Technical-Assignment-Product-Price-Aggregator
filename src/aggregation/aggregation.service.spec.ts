@@ -55,6 +55,18 @@ const mockProvidersService = {
       timestamp: new Date().toISOString(),
     },
   ]),
+  fetchProvider4: jest.fn().mockResolvedValue([
+    {
+      id: 8,
+      gameName: 'PC Game Z',
+      steamRating: 'Very Positive',
+      salePrice: 19.99,
+      currency: 'USD',
+      isAvailable: true,
+      source: 'CheapShark',
+      timestamp: new Date().toISOString(),
+    },
+  ]),
 };
 
 const mockQueue = {
@@ -65,7 +77,9 @@ const mockQueue = {
 
 const mockMetricsService = {
   cacheOperations: { inc: jest.fn() },
-  aggregationCycleDuration: { startTimer: jest.fn().mockReturnValue(jest.fn()) },
+  aggregationCycleDuration: {
+    startTimer: jest.fn().mockReturnValue(jest.fn()),
+  },
   aggregationCycleStatus: { inc: jest.fn() },
   providerFetchDuration: { startTimer: jest.fn().mockReturnValue(jest.fn()) },
   providerFetchStatus: { inc: jest.fn() },
@@ -128,4 +142,3 @@ describe('AggregationService', () => {
     );
   });
 });
-

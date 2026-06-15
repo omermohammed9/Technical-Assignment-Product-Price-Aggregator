@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import axios from 'axios';
+
 /**
  * Simulates three structurally different external provider APIs.
  *
@@ -11,126 +13,119 @@ import { Injectable } from '@nestjs/common';
 export class ProvidersService {
   private readonly PRICE_VARIATION = 0.1; // ±10%
 
-  // ── Provider 1 data (canonical schema) ────────────────────────────────────
-  private readonly provider1Catalog = [
-    {
-      id: 1,
-      name: 'Digital Course: TypeScript Mastery',
-      description: 'Complete TypeScript course for backend developers',
-      basePrice: 49.99,
-      currency: 'USD',
-      provider: 'TechLearn',
-    },
-    {
-      id: 2,
-      name: 'E-Book: Clean Architecture',
-      description: 'Robert C. Martin — architecture patterns',
-      basePrice: 14.99,
-      currency: 'USD',
-      provider: 'TechLearn',
-    },
-  ];
-
-  // ── Provider 2 data (uses "cost" + "inStock") ──────────────────────────────
-  private readonly provider2Catalog = [
-    {
-      id: 3,
-      name: 'Software License: VSCode Pro',
-      description: 'Extended IDE license with team features',
-      baseCost: 79.99,
-      currency: 'EUR',
-      vendor: 'SoftwareBazaar',
-    },
-    {
-      id: 4,
-      name: 'Digital Course: NestJS Advanced',
-      description: 'Microservices, CQRS, and event-sourcing in NestJS',
-      baseCost: 59.99,
-      currency: 'EUR',
-      vendor: 'SoftwareBazaar',
-    },
-  ];
-
-  // ── Provider 3 data (uses "listPrice" + "isAvailable") ────────────────────
-  private readonly provider3Catalog = [
-    {
-      id: 5,
-      name: 'Software License: JetBrains Suite',
-      description: 'Annual subscription — all IDEs included',
-      baseListPrice: 249.99,
-      currency: 'USD',
-      source: 'DevMarket',
-    },
-    {
-      id: 6,
-      name: 'E-Book: Designing Data-Intensive Applications',
-      description: 'Martin Kleppmann — distributed systems bible',
-      baseListPrice: 39.99,
-      currency: 'USD',
-      source: 'DevMarket',
-    },
-  ];
+  private hashCode(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash);
+  }
 
   // ── Network simulation ─────────────────────────────────────────────────────
-  private delay(ms = 1000) {
-    return new Promise<void>((resolve) => setTimeout(resolve, ms));
-  }
-
-  private randomPrice(base: number): number {
-    const delta = base * this.PRICE_VARIATION;
-    return parseFloat((base + (Math.random() * delta - delta / 2)).toFixed(2));
-  }
-
   /**
-   * Provider 1 — canonical shape: { price, availability }
+   * Provider 1 — Real API Integration (Apple iTunes / App Store)
    */
   async fetchProvider1(): Promise<any[]> {
-    await this.delay(800);
-    return this.provider1Catalog.map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      price: this.randomPrice(p.basePrice),
-      currency: p.currency,
-      availability: Math.random() > 0.2,
-      lastUpdated: new Date().toISOString(),
-      provider: p.provider,
-    }));
+    try {
+      const response = await axios.get(
+        'https://itunes.apple.com/search?term=developer&entity=software&limit=20',
+      );
+      return response.data.results.map((item: any) => ({
+        id: item.trackId,
+        name: item.trackCensoredName,
+        description:
+          item.description?.substring(0, 100) || 'App Store Software',
+        price: item.price || 0,
+        currency: item.currency || 'USD',
+        availability: true,
+        lastUpdated: new Date().toISOString(),
+        provider: 'Apple App Store',
+      }));
+    } catch (error) {
+      console.error('Failed to fetch from iTunes API:', error);
+      return [];
+    }
   }
 
   /**
    * Provider 2 — different field names: { cost, inStock, vendor }
    * AggregationService normalizes these into the canonical format.
+   * Real API: CoinGecko (Crypto Markets)
    */
   async fetchProvider2(): Promise<any[]> {
-    await this.delay(1200);
-    return this.provider2Catalog.map((p) => ({
-      id: p.id,
-      productName: p.name, // ≠ name
-      summary: p.description, // ≠ description
-      cost: this.randomPrice(p.baseCost), // ≠ price
-      currency: p.currency,
-      inStock: Math.random() > 0.3, // ≠ availability
-      updatedAt: new Date().toISOString(), // ≠ lastUpdated
-      vendor: p.vendor, // ≠ provider
-    }));
+    try {
+      const response = await axios.get(
+        'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=20',
+      );
+      return response.data.map((coin: any) => ({
+        id: this.hashCode(coin.id),
+        productName: coin.name,
+        summary: `Crypto Asset: ${coin.symbol.toUpperCase()}`,
+        cost: coin.current_price,
+        currency: 'USD',
+        inStock: true,
+        updatedAt: coin.last_updated || new Date().toISOString(),
+        vendor: 'CoinGecko',
+      }));
+    } catch (error) {
+      console.error('Failed to fetch from CoinGecko:', error);
+      return [];
+    }
   }
 
   /**
    * Provider 3 — different field names: { listPrice, isAvailable, source }
    * AggregationService normalizes these into the canonical format.
+   * Real API: Binance (Crypto Tickers)
    */
   async fetchProvider3(): Promise<any[]> {
-    await this.delay(600);
-    return this.provider3Catalog.map((p) => ({
-      id: p.id,
-      title: p.name, // ≠ name
-      details: p.description, // ≠ description
-      listPrice: this.randomPrice(p.baseListPrice), // ≠ price
-      currency: p.currency,
-      isAvailable: Math.random() > 0.15, // ≠ availability
-      timestamp: new Date().toISOString(), // ≠ lastUpdated
-      source: p.source, // ≠ provider
-    }));
+    try {
+      const response = await axios.get(
+        'https://api.binance.com/api/v3/ticker/24hr',
+      );
+      // Filter to USDT pairs and take top 20
+      const pairs = response.data
+        .filter((t: any) => t.symbol.endsWith('USDT'))
+        .slice(0, 20);
+      return pairs.map((ticker: any) => ({
+        id: this.hashCode(ticker.symbol),
+        title: ticker.symbol,
+        details: 'Binance Trading Pair',
+        listPrice: parseFloat(ticker.lastPrice),
+        currency: 'USDT',
+        isAvailable: true,
+        timestamp: new Date().toISOString(),
+        source: 'Binance',
+      }));
+    } catch (error) {
+      console.error('Failed to fetch from Binance:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Provider 4 — different field names: { gameName, steamRating, salePrice, isAvailable, source }
+   * AggregationService normalizes these into the canonical format.
+   * Real API: CheapShark (PC Game Deals)
+   */
+  async fetchProvider4(): Promise<any[]> {
+    try {
+      const response = await axios.get(
+        'https://www.cheapshark.com/api/1.0/deals?storeID=1&upperPrice=50&pageSize=20',
+      );
+      return response.data.map((deal: any) => ({
+        id: this.hashCode(deal.dealID),
+        gameName: deal.title,
+        steamRating: `Steam Rating: ${deal.steamRatingText || 'N/A'} (Normal Price: $${deal.normalPrice})`,
+        salePrice: parseFloat(deal.salePrice),
+        currency: 'USD',
+        isAvailable: true,
+        timestamp: new Date().toISOString(),
+        source: 'CheapShark',
+      }));
+    } catch (error) {
+      console.error('Failed to fetch from CheapShark:', error);
+      return [];
+    }
   }
 }

@@ -137,3 +137,59 @@
     - npm run build: 0 errors
     - npm run test: 14 tests passed, 4 suites passed
 
+
+### June 14, 2026
+- Made simulator easier to use by replacing JWT guards with standard ApiKey guard.
+- Integrated FakeStoreAPI using axios to replace simulated data in Provider 1.
+
+---
+
+## 2026-06-15 — Live APIs and Real-time UI Integration
+
+  Tasks: P3-08, P3-09, P3-10
+  Status: COMPLETED
+
+  Changes Made:
+    - Transformed `docker-compose.yml` into a fully persistent Live-Reloading (HMR) environment with volume mounts mapping source to containers.
+    - Updated `ProvidersService` to utilize 100% real, live production HTTP APIs:
+      - Provider 1: Apple iTunes (iOS Apps)
+      - Provider 2: CoinGecko (Crypto Markets)
+      - Provider 3: Binance (Crypto Tickers)
+      - Provider 4: CheapShark (PC Game Deals)
+    - Updated `AggregationService` engine and normalization schemas to handle the new `CheapShark` custom API fields alongside the crypto fields.
+    - Built a robust `AuthModal` in React providing Login/Register forms directly on the Frontend Dashboard.
+    - Removed `ConfigPanel.tsx` as JWT injection natively replaced standard configuration needs.
+    - Updated root `README.md`, `.agents/tasks_status_matrix.md`, and `.agents/project-context.md` to reflect real-world APIs and Docker port adjustments.
+    - Validated all Docker container statuses post-update.
+
+---
+
+## 2026-06-15 — UI/UX Refinement & Mobile Responsiveness
+
+  Task: P3-11 — UI/UX, Quality, and Mobile Responsiveness
+  Status: COMPLETED
+
+  Changes Made:
+    - Updated `frontend/src/index.css` to add responsive layout utility classes (`.catalog-grid`), media queries, modal fade-in/slide-up keyframes, and custom webkit scrollbar styles.
+    - Updated `frontend/src/App.tsx` to handle responsiveness in the header actions, wrap catalog grids with responsive CSS classes, and mount the new settings panels.
+    - Updated `frontend/src/components/ProductList.tsx` to add a collapsible filter container toggle button, wrap card item structures dynamically for mobile viewports, and implement useCallback logic to eliminate cyclic effect dependencies.
+    - Updated `frontend/src/components/Simulator.tsx` to sync prop changes to state during render (complying with React 19 rules), avoid impure Math.random calls, and handle try-catch errors cleanly.
+    - Updated `frontend/src/components/AuthModal.tsx` to resolve the fixed 400px container width and add fade/slide-up layout animations.
+    - Created `frontend/src/components/DeveloperConsole.tsx` allowing users to view, copy, and inspect the claims (Subject, Role, Expiration) of their JWT Bearer tokens.
+    - Created `frontend/src/components/ProviderStatus.tsx` visual mapping card demonstrating how incoming raw API fields are normalized into the unified database schema.
+    - Validated all code changes with `npm run build` and `npm run lint` returning 100% clean with zero warnings or errors.
+
+---
+
+## 2026-06-15 — Frontend UI/UX Rendering Loop Hotfix
+
+  Task: P3-11 Hotfix — SSE & Debouncer Infinite Rendering Loops
+  Status: COMPLETED
+
+  Changes Made:
+    - Fixed infinite EventSource reconnection loops in `App.tsx` by wrapping the `onFilterChange` handler in `useCallback` and utilizing mutable `useRef` instances for stateful callback functions (`fetchProducts`, `fetchProductDetails`, and `addToast`) inside the SSE connection hook.
+    - Simplified the SSE `useEffect` dependency array in `App.tsx` to strictly rely on `[apiKey]` by moving `baseUrl` and `buildUrl` outside the component as static, global utilities.
+    - Resolved the infinite debouncing timer resets in `ProductList.tsx` by keeping a `useRef` instance of the filter-trigger callback, decoupling the timer's `useEffect` from changing prop references and binding it exclusively to `[searchTerm]`.
+    - Added the `watch: { usePolling: true }` parameter to the Vite configuration in `vite.config.ts` to ensure hot module reloading (HMR) operates correctly across Windows-to-Linux bind mounts within Docker.
+    - Verified the frontend compilation compiles successfully, and validated using the browser subagent that the SSE connection remains stable with zero infinite loops.
+

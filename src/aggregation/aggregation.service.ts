@@ -49,10 +49,14 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
     );
 
     // Run an initial fetch immediately on startup
-    await this.aggregationQueue.add('aggregation-cycle', {}, {
-      removeOnComplete: { count: 10 },
-      removeOnFail: { count: 50 },
-    });
+    await this.aggregationQueue.add(
+      'aggregation-cycle',
+      {},
+      {
+        removeOnComplete: { count: 10 },
+        removeOnFail: { count: 50 },
+      },
+    );
   }
 
   // ── BullMQ Worker Process ─────────────────────────────────────────────────
@@ -83,29 +87,39 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
       name: string,
       fetchFn: () => Promise<unknown[]>,
     ) => {
-      const end = this.metrics.providerFetchDuration.startTimer({ provider: name });
+      const end = this.metrics.providerFetchDuration.startTimer({
+        provider: name,
+      });
       try {
         const result = await this.fetchWithRetries(fetchFn);
-        this.metrics.providerFetchStatus.inc({ provider: name, status: 'success' });
+        this.metrics.providerFetchStatus.inc({
+          provider: name,
+          status: 'success',
+        });
         return result;
       } catch (err) {
-        this.metrics.providerFetchStatus.inc({ provider: name, status: 'failure' });
+        this.metrics.providerFetchStatus.inc({
+          provider: name,
+          status: 'failure',
+        });
         throw err;
       } finally {
         end();
       }
     };
 
-    const [r1, r2, r3] = await Promise.allSettled([
+    const [r1, r2, r3, r4] = await Promise.allSettled([
       fetchProvider('provider-1', () => this.providersService.fetchProvider1()),
       fetchProvider('provider-2', () => this.providersService.fetchProvider2()),
       fetchProvider('provider-3', () => this.providersService.fetchProvider3()),
+      fetchProvider('provider-4', () => this.providersService.fetchProvider4()),
     ]);
 
     const raw = [
       ...(r1.status === 'fulfilled' ? (r1.value ?? []) : []),
       ...(r2.status === 'fulfilled' ? (r2.value ?? []) : []),
       ...(r3.status === 'fulfilled' ? (r3.value ?? []) : []),
+      ...(r4.status === 'fulfilled' ? (r4.value ?? []) : []),
     ];
 
     if (!raw.length) {
@@ -165,10 +179,14 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
       .filter((p) => p.id !== undefined && p.id !== null)
       .map((p) => ({
         id: Number(p.id),
-        name: p.name ?? p.productName ?? p.title ?? 'Unknown',
+        name: p.name ?? p.productName ?? p.title ?? p.gameName ?? 'Unknown',
         description:
-          p.description ?? p.summary ?? p.details ?? 'No description',
-        price: Number(p.price ?? p.cost ?? p.listPrice ?? 0),
+          p.description ??
+          p.summary ??
+          p.details ??
+          p.steamRating ??
+          'No description',
+        price: Number(p.price ?? p.cost ?? p.listPrice ?? p.salePrice ?? 0),
         currency: p.currency ?? 'USD',
         availability: Boolean(
           p.availability ?? p.inStock ?? p.isAvailable ?? false,
@@ -253,4 +271,3 @@ export class AggregationService extends WorkerHost implements OnModuleInit {
     }
   }
 }
-

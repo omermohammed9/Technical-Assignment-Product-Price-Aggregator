@@ -52,7 +52,7 @@ interface ProductHistoryChartProps {
 export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ product, loading }) => {
   if (loading) {
     return (
-      <div className="card" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '350px', color: 'var(--text-secondary)' }}>
+      <div className="card" id="history-chart-panel" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '350px', color: 'var(--text-secondary)' }}>
         <Clock size={20} className="spin" style={{ marginRight: '0.5rem', animation: 'spin 2s infinite linear' }} /> Loading product details...
       </div>
     );
@@ -60,7 +60,7 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
 
   if (!product) {
     return (
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '350px', color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
+      <div className="card" id="history-chart-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '350px', color: 'var(--text-muted)', textAlign: 'center', padding: '2rem' }}>
         <ShoppingCart size={48} style={{ strokeWidth: 1.5, marginBottom: '1rem', color: 'var(--text-muted)' }} />
         <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>No Product Selected</h3>
         <p style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>Select a product from the list to view its price details and aggregation history.</p>
@@ -113,6 +113,7 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
         pointHoverRadius: 7,
         tension: 0.35,
         fill: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         backgroundColor: (context: any) => {
           const chart = context.chart;
           const { ctx, chartArea } = chart;
@@ -141,6 +142,7 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
         borderColor: 'rgba(255, 255, 255, 0.08)',
         borderWidth: 1,
         callbacks: {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           label: (item: any) => ` Price: $${Number(item.raw).toFixed(2)}`,
         },
       },
@@ -163,6 +165,7 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
         ticks: {
           color: '#64748b',
           font: { family: 'Plus Jakarta Sans', size: 10 },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           callback: (value: any) => `$${value}`,
         },
       },
@@ -186,7 +189,7 @@ export const ProductHistoryChart: React.FC<ProductHistoryChartProps> = ({ produc
         </div>
         
         {/* Quick price card */}
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', padding: '0.75rem 1.25rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', padding: '0.75rem 1.25rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', flexGrow: 1, justifyContent: 'space-between', minWidth: '200px' }}>
           <div>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>Current Price</span>
             <span style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, ChevronLeft, ChevronRight, Store, Calendar } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { RefreshCw, ChevronLeft, ChevronRight, Store, Calendar, SlidersHorizontal } from 'lucide-react';
 
 interface Product {
   id: number;
@@ -54,17 +54,9 @@ export const ProductList: React.FC<ProductListProps> = ({
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [localLimit, setLocalLimit] = useState(limit);
+  const [filtersExpanded, setFiltersExpanded] = useState(() => window.innerWidth > 768);
 
-  // Debounce search term to prevent rapid queries
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      triggerFilterChange({ page: 1 });
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const triggerFilterChange = (overrides: { page?: number; limit?: number } = {}) => {
+  const triggerFilterChange = useCallback((overrides: { page?: number; limit?: number } = {}) => {
     let avail: boolean | undefined = undefined;
     if (availability === 'true') avail = true;
     if (availability === 'false') avail = false;
@@ -78,7 +70,21 @@ export const ProductList: React.FC<ProductListProps> = ({
       page: overrides.page !== undefined ? overrides.page : page,
       limit: overrides.limit !== undefined ? overrides.limit : localLimit
     });
-  };
+  }, [availability, searchTerm, provider, minPrice, maxPrice, page, localLimit, onFilterChange]);
+
+  const triggerFilterChangeRef = useRef(triggerFilterChange);
+  useEffect(() => {
+    triggerFilterChangeRef.current = triggerFilterChange;
+  });
+
+  // Debounce search term to prevent rapid queries
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      triggerFilterChangeRef.current({ page: 1 });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const handleFilterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,6 +131,16 @@ export const ProductList: React.FC<ProductListProps> = ({
           </h2>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button 
+            id="btn-toggle-filters" 
+            onClick={() => setFiltersExpanded(!filtersExpanded)} 
+            className={`btn-secondary ${filtersExpanded ? 'btn-primary' : ''}`} 
+            style={{ padding: '0.5rem 0.75rem', height: '36px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+            title="Toggle Filters"
+          >
+            <SlidersHorizontal size={14} />
+            {filtersExpanded ? 'Hide Filters' : 'Filters'}
+          </button>
           <button id="btn-refresh-catalog" onClick={onRefresh} className="btn-secondary" style={{ padding: '0.5rem', height: '36px' }} title="Refresh Catalog">
             <RefreshCw size={16} className={loading ? 'pulse' : ''} style={{ animation: loading ? 'pulse 1.5s infinite linear' : 'none' }} />
           </button>
@@ -135,62 +151,64 @@ export const ProductList: React.FC<ProductListProps> = ({
       </div>
 
       {/* Filter Form */}
-      <form onSubmit={handleFilterSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
-        <div>
-          <input
-            id="filter-search"
-            type="text"
-            placeholder="Search by name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-          />
-        </div>
-        <div>
-          <select
-            id="filter-provider"
-            value={provider}
-            onChange={(e) => { setProvider(e.target.value); setTimeout(() => triggerFilterChange({ page: 1 }), 0); }}
-            style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-          >
-            <option value="">All Providers</option>
-            <option value="provider1">Provider 1 (Price)</option>
-            <option value="provider2">Provider 2 (Cost)</option>
-            <option value="provider3">Provider 3 (ListPrice)</option>
-          </select>
-        </div>
-        <div>
-          <select
-            id="filter-availability"
-            value={availability}
-            onChange={(e) => { setAvailability(e.target.value); setTimeout(() => triggerFilterChange({ page: 1 }), 0); }}
-            style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-          >
-            <option value="all">Availability: All</option>
-            <option value="true">In Stock</option>
-            <option value="false">Out of Stock</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: '0.25rem' }}>
-          <input
-            id="filter-min-price"
-            type="number"
-            placeholder="Min $"
-            value={minPrice}
-            onChange={(e) => setMinPrice(e.target.value)}
-            style={{ padding: '0.5rem 0.5rem', fontSize: '0.85rem' }}
-          />
-          <input
-            id="filter-max-price"
-            type="number"
-            placeholder="Max $"
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(e.target.value)}
-            style={{ padding: '0.5rem 0.5rem', fontSize: '0.85rem' }}
-          />
-          <button type="submit" className="btn-secondary" style={{ display: 'none' }}>Go</button>
-        </div>
-      </form>
+      <div className={`filters-container ${filtersExpanded ? 'expanded' : 'collapsed'}`} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: filtersExpanded ? '1rem' : '0' }}>
+        <form onSubmit={handleFilterSubmit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+          <div>
+            <input
+              id="filter-search"
+              type="text"
+              placeholder="Search by name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+            />
+          </div>
+          <div>
+            <select
+              id="filter-provider"
+              value={provider}
+              onChange={(e) => { setProvider(e.target.value); setTimeout(() => triggerFilterChange({ page: 1 }), 0); }}
+              style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+            >
+              <option value="">All Providers</option>
+              <option value="provider1">Provider 1 (Price)</option>
+              <option value="provider2">Provider 2 (Cost)</option>
+              <option value="provider3">Provider 3 (ListPrice)</option>
+            </select>
+          </div>
+          <div>
+            <select
+              id="filter-availability"
+              value={availability}
+              onChange={(e) => { setAvailability(e.target.value); setTimeout(() => triggerFilterChange({ page: 1 }), 0); }}
+              style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+            >
+              <option value="all">Availability: All</option>
+              <option value="true">In Stock</option>
+              <option value="false">Out of Stock</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: '0.25rem' }}>
+            <input
+              id="filter-min-price"
+              type="number"
+              placeholder="Min $"
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              style={{ padding: '0.5rem 0.5rem', fontSize: '0.85rem' }}
+            />
+            <input
+              id="filter-max-price"
+              type="number"
+              placeholder="Max $"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              style={{ padding: '0.5rem 0.5rem', fontSize: '0.85rem' }}
+            />
+            <button type="submit" className="btn-secondary" style={{ display: 'none' }}>Go</button>
+          </div>
+        </form>
+      </div>
 
       {/* Product List Grid */}
       <div style={{ flex: 1, minHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -216,15 +234,11 @@ export const ProductList: React.FC<ProductListProps> = ({
                   backgroundColor: isSelected ? 'var(--primary-glow)' : 'transparent',
                   borderRadius: 'var(--radius-sm)',
                   cursor: 'pointer',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  transition: 'all 0.15s ease',
                   boxShadow: isSelected ? 'var(--shadow-sm)' : 'none'
                 }}
-                className="product-card"
+                className={`product-card ${isSelected ? 'selected' : ''}`}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxWidth: '75%' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxWidth: '75%', minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>{p.name}</h4>
                     <span className="badge badge-success" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', textTransform: 'capitalize', backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>

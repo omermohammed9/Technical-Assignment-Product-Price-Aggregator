@@ -52,4 +52,3 @@ export class ApiKeyMiddleware implements NestMiddleware {
     throw new UnauthorizedException('Invalid or missing API key or JWT token');
   }
 }
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Play, Sparkles, Check, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface Product {
@@ -24,16 +24,19 @@ export const Simulator: React.FC<SimulatorProps> = ({
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  // Sync with selected product from catalog
-  useEffect(() => {
+  const [prevProduct, setPrevProduct] = useState<Product | null>(null);
+
+  // Sync with selected product from catalog during render (React 19 standard)
+  if (selectedProduct !== prevProduct) {
+    setPrevProduct(selectedProduct);
     if (selectedProduct) {
       setTargetProductId(selectedProduct.id);
-      // Auto-suggest a price fluctuation (e.g. +/- 10%)
-      const fluctuation = (Math.random() > 0.5 ? 1.1 : 0.9);
+      // Deterministic fluctuation based on product ID to keep render pure
+      const fluctuation = selectedProduct.id % 2 === 0 ? 1.1 : 0.85;
       const suggestedPrice = Math.round(selectedProduct.price * fluctuation);
       setNewPrice(suggestedPrice.toString());
     }
-  }, [selectedProduct]);
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,8 +61,9 @@ export const Simulator: React.FC<SimulatorProps> = ({
       } else {
         setError('Simulation failed. Check API Key or server status.');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to simulate price change');
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to simulate price change';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

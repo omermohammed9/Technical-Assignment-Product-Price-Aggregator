@@ -28,7 +28,7 @@ export const LiveChangeFeed: React.FC<LiveChangeFeedProps> = ({
   };
 
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '500px' }}>
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '500px', overflow: 'hidden' }}>
       {/* Feed title and status */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
         <h3 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -45,7 +45,7 @@ export const LiveChangeFeed: React.FC<LiveChangeFeedProps> = ({
       </div>
 
       {/* Change list */}
-      <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem', minHeight: '200px' }}>
+      <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.65rem', flex: 1 }}>
         {changes.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
             <Zap size={32} style={{ strokeWidth: 1.5, marginBottom: '0.5rem', color: 'var(--text-muted)' }} />

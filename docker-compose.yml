@@ -20,24 +20,44 @@ services:
       retries: 5
 
   app:
-    build: .
+    image: node:20-alpine
     container_name: aggregator_app
     restart: unless-stopped
+    working_dir: /app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
+    command: sh -c "npm install && npx prisma generate && npx prisma migrate deploy && npm run start:dev"
+    volumes:
+      - ./:/app
+      # Exclude node_modules so we don't overwrite container's linux binaries with windows binaries if they exist locally
+      - /app/node_modules
     environment:
+      NODE_ENV: development
       DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-aggregator_db}
-      REDIS_URL: redis://${REDIS_HOST:-redis}:6379
+      REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
       API_KEY: ${API_KEY:-supersecureapikey123}
       DATA_FETCH_INTERVAL: ${DATA_FETCH_INTERVAL:-30000}
       THROTTLE_TTL: ${THROTTLE_TTL:-60000}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-100}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
     ports:
       - '3000:3000'
+
+  frontend:
+    image: node:20-alpine
+    container_name: aggregator_frontend
+    restart: unless-stopped
+    working_dir: /app/frontend
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./:/app
+      - /app/frontend/node_modules
+    ports:
+      - '5173:5173'
 
   redis:
     image: redis:7-alpine

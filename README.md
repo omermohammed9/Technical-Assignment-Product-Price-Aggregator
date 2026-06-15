@@ -1,6 +1,6 @@
 # Product Price Aggregator
 
-A **NestJS + Prisma + PostgreSQL** backend service that aggregates pricing and availability data for digital products from multiple simulated third-party providers in real time.
+A **NestJS + Prisma + PostgreSQL** backend service that aggregates pricing and availability data for digital products from multiple live, real-world third-party APIs (Apple iTunes, CoinGecko, Binance, CheapShark) in real time.
 
 ---
 
@@ -23,7 +23,7 @@ A **NestJS + Prisma + PostgreSQL** backend service that aggregates pricing and a
 
 ## Overview
 
-The service collects, normalizes, and stores product data from **three simulated providers** with structurally different API schemas. It exposes a RESTful API for querying products, price history, and real-time change events.
+The service collects, normalizes, and stores product data from **four real-world providers** (iTunes, CoinGecko, Binance, CheapShark) with structurally different API schemas. It exposes a RESTful API for querying products, price history, and real-time change events.
 
 Key capabilities:
 - Concurrent provider fetching with **exponential-backoff retry**
@@ -46,9 +46,10 @@ Key capabilities:
 │  │  Providers  │───▶│  AggregationSvc  │                  │
 │  │  Service    │    │  (scheduler)     │                  │
 │  │             │    │  - normalize     │                  │
-│  │  Provider1  │    │  - upsert        │──▶ PostgreSQL    │
-│  │  Provider2* │    │  - mark stale    │    (Prisma ORM)  │
-│  │  Provider3* │    └──────────────────┘                  │
+│  │  iTunes     │    │  - upsert        │──▶ PostgreSQL    │
+│  │  CoinGecko* │    │  - mark stale    │    (Prisma ORM)  │
+│  │  Binance*   │    └──────────────────┘                  │
+│  │  CheapShark*│                                          │
 │  └─────────────┘                                          │
 │       *different field names → normalization is real      │
 │                                                           │
@@ -65,7 +66,7 @@ Key capabilities:
 ### Data Flow
 
 1. `AggregationService.onModuleInit()` triggers an immediate fetch, then schedules periodic fetches.
-2. `Promise.allSettled()` fetches from all 3 providers **concurrently**; individual failures don't abort the cycle.
+2. `Promise.allSettled()` fetches from all 4 providers **concurrently**; individual failures don't abort the cycle.
 3. Raw data is **normalized** into a canonical schema regardless of provider field naming.
 4. An Prisma `$transaction` checks for price/availability deltas → writes `PriceHistory`, then upserts `Product`.
 5. After each cycle, products with `lastFetched` older than the stale threshold are flagged `isStale: true`.
@@ -129,7 +130,7 @@ cp .env.example .env
 docker compose up --build -d
 
 # App will be available at http://localhost:3000
-# React Dashboard at http://localhost:3000
+# React Dashboard (Live Reloading) at http://localhost:5173
 # Swagger at http://localhost:3000/api
 # Prometheus Metrics at http://localhost:9090
 # Grafana Dashboards at http://localhost:3001
@@ -266,7 +267,7 @@ To use it:
 A beautiful, interactive React + Vite + Chart.js single-page portfolio dashboard is served at:
 
 ```
-http://localhost:3000/public/index.html
+http://localhost:5173
 ```
 
 Key features:
@@ -274,10 +275,11 @@ Key features:
 - **Product Catalog**: Live search, provider dropdown, min/max price sliders, pagination, and details inspector.
 - **Price History Charts**: Beautiful curved line charts visualizing price aggregation histories using Chart.js.
 - **Live Price Stream**: Persistent SSE stream connection with real-time animated notifications and popup alert toasts.
-- **Price Change Simulator**: Form to immediately trigger mock price changes on any product.
-- **Settings Panel**: Configure and store the backend URL and `x-api-key` credentials in `localStorage`.
+- **Price Change Simulator**: Form to immediately trigger mock price changes on any product (Requires Admin Login).
+- **Authentication**: Built-in AuthModal for Secure Login/Registration and automatic JWT token injection.
 
-### Local Frontend Development
+### Local Frontend Development (Docker HMR)
+The Docker Compose setup automatically starts the frontend on port 5173 with Hot Module Replacement (HMR) fully enabled.
 To run or build the frontend independently:
 ```bash
 cd frontend
@@ -290,8 +292,8 @@ npm run build    # Compiles and outputs production bundle directly to NestJS sta
 
 ## Design Decisions & Trade-offs
 
-### Provider simulation (in-process vs. separate HTTP servers)
-Providers are simulated as injectable services rather than separate HTTP processes. This keeps the project self-contained and runnable with a single `docker compose up`. In production these would be replaced by `HttpModule` (Axios) calls to real external APIs.
+### Provider simulation vs. External APIs
+The architecture originally used simulated in-process providers. It now integrates completely real, production external HTTP APIs (Apple iTunes, Binance, CoinGecko, CheapShark) to demonstrate handling diverse external systems.
 
 ### SSE over WebSocket
 The assignment specifically requested SSE. SSE is simpler (HTTP/1.1 compatible, no handshake, auto-reconnect in browsers) and sufficient for one-directional server→client price updates.

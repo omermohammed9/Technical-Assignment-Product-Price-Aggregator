@@ -11,7 +11,13 @@ import {
 import { ProductsService } from './products.service';
 import { GetProductsDto } from './dto/get-products.dto';
 import { GetProductChangesDto } from './dto/get-product-changes.dto';
-import { ApiOperation, ApiQuery, ApiSecurity, ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiQuery,
+  ApiSecurity,
+  ApiBearerAuth,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Observable, map, merge, from } from 'rxjs';
 import { JwtAuthGuard } from '../modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../modules/auth/guards/roles.guard';

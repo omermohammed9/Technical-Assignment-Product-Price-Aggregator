@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { LayoutDashboard, Moon, Sun, Bell } from 'lucide-react';
-import { ConfigPanel } from './components/ConfigPanel';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { LayoutDashboard, Moon, Sun, Bell, LogOut, User as UserIcon, Shield } from 'lucide-react';
 import { MetricsOverview } from './components/MetricsOverview';
 import { ProductList } from './components/ProductList';
 import { ProductHistoryChart } from './components/ProductHistoryChart';
 import { LiveChangeFeed } from './components/LiveChangeFeed';
 import { Simulator } from './components/Simulator';
+import { AuthModal } from './components/AuthModal';
+import { DeveloperConsole } from './components/DeveloperConsole';
+import { ProviderStatus } from './components/ProviderStatus';
 
 interface Product {
   id: number;
@@ -35,9 +37,39 @@ interface Toast {
   newPrice: number;
 }
 
+const baseUrl = typeof window !== 'undefined' && window.location.origin === 'http://localhost:5173' ? 'http://localhost:3000' : '';
+
+const buildUrl = (path: string) => {
+  const base = baseUrl.replace(/\/$/, '');
+  return `${base}${path}`;
+};
+
 export default function App() {
-  // Config & Auth
-  const [config, setConfig] = useState({ apiKey: 'supersecureapikey123', baseUrl: '' });
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('aggregator_api_key') || '');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  
+  // JWT parsing
+  const [user, setUser] = useState<{ email: string; role: string } | null>(null);
+
+  useEffect(() => {
+    if (apiKey && apiKey.startsWith('eyJ')) {
+      try {
+        const payload = JSON.parse(atob(apiKey.split('.')[1]));
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setUser(payload);
+      } catch {
+        setUser(null);
+      }
+    } else {
+      setUser(null);
+    }
+  }, [apiKey]);
+
+  const handleLogout = () => {
+    setApiKey('');
+    localStorage.removeItem('aggregator_api_key');
+    setUser(null);
+  };
 
   // Theme
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -52,6 +84,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [selectedProductDetails, setSelectedProductDetails] = useState<any | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
@@ -92,22 +125,21 @@ export default function App() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  const buildUrl = (path: string) => {
-    const base = config.baseUrl.replace(/\/$/, '');
-    return `${base}${path}`;
-  };
+  const handleFilterChange = useCallback((newFilters: any) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  }, []);
 
   // Toast adder
-  const addToast = (event: ChangeEvent) => {
+  const addToast = useCallback((event: ChangeEvent) => {
     const id = `${event.id}-${Date.now()}`;
     setToasts((prev) => [...prev, { id, name: event.name, oldPrice: event.oldPrice, newPrice: event.newPrice }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 4500);
-  };
+  }, []);
 
   // Fetch product list
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
@@ -122,7 +154,7 @@ export default function App() {
       const url = buildUrl(`/products?${queryParams.toString()}`);
       const res = await fetch(url, {
         headers: {
-          'x-api-key': config.apiKey
+          'x-api-key': apiKey || 'supersecureapikey123'
         }
       });
 
@@ -142,16 +174,16 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiKey, buildUrl, filters, selectedProductId]);
 
   // Fetch single product details with history
-  const fetchProductDetails = async (id: number) => {
+  const fetchProductDetails = useCallback(async (id: number) => {
     setDetailsLoading(true);
     try {
       const url = buildUrl(`/products/${id}`);
       const res = await fetch(url, {
         headers: {
-          'x-api-key': config.apiKey
+          'x-api-key': apiKey || 'supersecureapikey123'
         }
       });
       if (!res.ok) throw new Error('Failed to fetch product details');
@@ -162,26 +194,34 @@ export default function App() {
     } finally {
       setDetailsLoading(false);
     }
-  };
+  }, [apiKey, buildUrl]);
 
-  // Triggered when filters change
   useEffect(() => {
-    if (config.apiKey) {
-      fetchProducts();
-    }
-  }, [filters, config]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchProducts();
+  }, [filters, apiKey, fetchProducts]);
 
-  // Triggered when product selection changes
   useEffect(() => {
-    if (selectedProductId !== null && config.apiKey) {
+    if (selectedProductId !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchProductDetails(selectedProductId);
     }
-  }, [selectedProductId, config]);
+  }, [selectedProductId, apiKey, fetchProductDetails]);
+
+  const fetchProductsRef = useRef(fetchProducts);
+  const fetchProductDetailsRef = useRef(fetchProductDetails);
+  const addToastRef = useRef(addToast);
+
+  useEffect(() => {
+    fetchProductsRef.current = fetchProducts;
+    fetchProductDetailsRef.current = fetchProductDetails;
+    addToastRef.current = addToast;
+  });
 
   // SSE Stream handler
   useEffect(() => {
     let eventSource: EventSource | null = null;
-    let reconnectTimer: any = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const connectSSE = () => {
       if (eventSource) {
@@ -189,34 +229,34 @@ export default function App() {
       }
 
       const url = buildUrl('/products/live-changes');
-      console.log('🔗 Connecting to SSE stream at:', url);
+      console.log('🔗 [DEBUG] Connecting to SSE stream at:', url, 'with apiKey:', apiKey);
       eventSource = new EventSource(url);
 
       eventSource.onopen = () => {
         setConnected(true);
-        console.log('✅ Connected to SSE stream.');
+        console.log('✅ [DEBUG] Connected to SSE stream.');
       };
 
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (Array.isArray(data)) {
-            // Initial snapshot
+            console.log('📦 [DEBUG] SSE received initial snapshot array of length:', data.length);
             setChanges(data);
           } else {
-            // Live single update
+            console.log('🔔 [DEBUG] SSE received live update event:', data);
             setChanges((prev) => {
               const updated = [data, ...prev];
               return updated.slice(0, 20); // cap at 20 items
             });
             
             // Add visual notification
-            addToast(data);
+            addToastRef.current(data);
 
             // Refresh catalog and detailed view
-            fetchProducts();
+            fetchProductsRef.current();
             if (selectedProductIdRef.current === data.id) {
-              fetchProductDetails(data.id);
+              fetchProductDetailsRef.current(data.id);
             }
           }
         } catch (err) {
@@ -224,9 +264,9 @@ export default function App() {
         }
       };
 
-      eventSource.onerror = () => {
+      eventSource.onerror = (err) => {
         setConnected(false);
-        console.log('❌ Connection lost. Re-establishing in 5s...');
+        console.log('❌ [DEBUG] Connection lost or error occurred:', err);
         eventSource?.close();
         reconnectTimer = setTimeout(connectSSE, 5000);
       };
@@ -235,6 +275,7 @@ export default function App() {
     connectSSE();
 
     return () => {
+      console.log('🧹 [DEBUG] SSE cleanup called! Closing EventSource...');
       if (eventSource) {
         eventSource.close();
       }
@@ -242,17 +283,21 @@ export default function App() {
         clearTimeout(reconnectTimer);
       }
     };
-  }, [config]);
+  }, [apiKey]);
 
   // Simulator triggering handler
   const handleSimulate = async (productId: number, price: number) => {
     try {
       const url = buildUrl(`/products/simulate-change/${productId}/${price}`);
-      const res = await fetch(url, {
-        headers: {
-          'x-api-key': config.apiKey
-        }
-      });
+      const headers: Record<string, string> = {
+        'x-api-key': apiKey || 'supersecureapikey123'
+      };
+      
+      if (apiKey.startsWith('eyJ')) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const res = await fetch(url, { headers });
       if (!res.ok) return false;
       
       // SSE will handle refreshing components, but trigger quick updates in case
@@ -285,11 +330,28 @@ export default function App() {
         </div>
 
         <div className="header-actions">
+          {user ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: 'rgba(255,255,255,0.03)', padding: '0.4rem 0.8rem', borderRadius: '50px', border: '1px solid var(--border-color)' }}>
+              {user.role === 'ADMIN' ? <Shield size={16} color="var(--primary)" /> : <UserIcon size={16} color="var(--text-secondary)" />}
+              <div className="user-badge-text" style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{user.email}</span>
+                <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{user.role}</span>
+              </div>
+              <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.2rem', marginLeft: '0.5rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Log Out">
+                <LogOut size={16} />
+              </button>
+            </div>
+          ) : (
+            <button className="btn-primary" onClick={() => setIsAuthModalOpen(true)} style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+              Log In / Register
+            </button>
+          )}
+
           {/* SSE Stream status indicator */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.8rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: '50px', border: '1px solid var(--border-color)' }}>
             <div className={`pulse-dot ${connected ? '' : 'disconnected'}`} />
-            <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>
-              {connected ? 'SSE Connected' : 'SSE Reconnecting'}
+            <span className="user-badge-text" style={{ fontSize: '0.75rem', fontWeight: 600 }}>
+              {connected ? 'Connected' : 'Offline'}
             </span>
           </div>
 
@@ -313,7 +375,7 @@ export default function App() {
           />
 
           {/* Product and Chart Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', flex: 1 }}>
+          <div className="catalog-grid">
             <ProductList
               products={products}
               total={total}
@@ -323,7 +385,7 @@ export default function App() {
               loading={loading}
               selectedProductId={selectedProductId}
               onSelectProduct={setSelectedProductId}
-              onFilterChange={(newFilters) => setFilters(prev => ({ ...prev, ...newFilters }))}
+              onFilterChange={handleFilterChange}
               onRefresh={fetchProducts}
             />
 
@@ -336,24 +398,23 @@ export default function App() {
 
         {/* Right Side: Settings & Controls */}
         <div className="side-panel">
-          <ConfigPanel
-            onConfigChange={(newConfig) => {
-              setConfig(newConfig);
-              setFilters(prev => ({ ...prev, page: 1 })); // Reset pagination on config update
-            }}
-          />
+          {user && user.role === 'ADMIN' && (
+            <Simulator
+              products={products.map(p => ({ id: p.id, name: p.name, price: p.price }))}
+              selectedProduct={products.find(p => p.id === selectedProductId) || null}
+              onSimulate={handleSimulate}
+            />
+          )}
 
-          <Simulator
-            products={products.map(p => ({ id: p.id, name: p.name, price: p.price }))}
-            selectedProduct={products.find(p => p.id === selectedProductId) || null}
-            onSimulate={handleSimulate}
-          />
+          <DeveloperConsole apiKey={apiKey} user={user} />
 
           <LiveChangeFeed
             changes={changes}
             connected={connected}
             onSelectProduct={setSelectedProductId}
           />
+
+          <ProviderStatus />
         </div>
       </main>
 
@@ -374,6 +435,16 @@ export default function App() {
           );
         })}
       </div>
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        baseUrl={baseUrl}
+        onSuccess={(token) => {
+          setApiKey(token);
+          localStorage.setItem('aggregator_api_key', token);
+        }}
+      />
     </div>
   );
 }
